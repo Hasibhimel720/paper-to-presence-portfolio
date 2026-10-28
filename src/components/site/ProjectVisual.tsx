@@ -44,7 +44,7 @@ export function ProjectVisual({ project, label, className, zoom }: Props) {
         )}
       >
         {isPack ? (
-          <div className="flex items-end gap-[3%] h-[62%]">
+          <div className="flex items-end gap-[3%] h-[48%]">
             <div className="h-[78%] aspect-[3/5] rounded-sm bg-background/25 border border-foreground/20 shadow-2xl" />
             <div className="h-full aspect-[3/5] rounded-sm bg-background/40 border border-foreground/25 shadow-2xl flex flex-col justify-center px-[8%]">
               <span className="h-[3px] w-1/2 bg-foreground/70" />
