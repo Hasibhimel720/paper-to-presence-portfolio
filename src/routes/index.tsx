@@ -181,12 +181,12 @@ function SelectedWork() {
         intro="A curated collection of brand identities, packaging concepts, and commercial visuals created to give brands a distinctive visual direction and a stronger product presence."
       />
       <div className="grid gap-x-6 gap-y-16 md:grid-cols-12 md:gap-y-24">
-        <WorkCard i={0} p={f[0]} className="md:col-span-12" aspect="aspect-[4/3] md:aspect-[21/9]" />
-        <WorkCard i={0} p={f[1]} className="md:col-span-5" aspect="aspect-[4/5]" />
-        <WorkCard i={1} p={f[2]} className="md:col-span-7 md:mt-32" aspect="aspect-[4/3]" />
-        <WorkCard i={0} p={f[3]} className="md:col-span-10 md:col-start-2" aspect="aspect-[4/3] md:aspect-[16/8]" />
-        <WorkCard i={0} p={f[4]} className="md:col-span-6" aspect="aspect-[4/3]" />
-        <WorkCard i={1} p={f[5]} className="md:col-span-6 md:mt-24" aspect="aspect-[4/3]" />
+        <WorkCard i={0} p={f[0]!} className="md:col-span-12" aspect="aspect-[4/3] md:aspect-[21/9]" />
+        <WorkCard i={0} p={f[1]!} className="md:col-span-5" aspect="aspect-[4/5]" />
+        <WorkCard i={1} p={f[2]!} className="md:col-span-7 md:mt-32" aspect="aspect-[4/3]" />
+        <WorkCard i={0} p={f[3]!} className="md:col-span-10 md:col-start-2" aspect="aspect-[4/3] md:aspect-[16/8]" />
+        <WorkCard i={0} p={f[4]!} className="md:col-span-6" aspect="aspect-[4/3]" />
+        <WorkCard i={1} p={f[5]!} className="md:col-span-6 md:mt-24" aspect="aspect-[4/3]" />
       </div>
     </section>
   );
