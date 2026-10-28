@@ -176,57 +176,81 @@ function WorkList() {
         title={<>Every project, one place to <span className="text-primary">explore.</span></>}
         intro="Filter by discipline, or open a project to see the full story behind it."
       />
-      
-<div
-  key={cat}
-  className="mt-8 grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-bottom-3 duration-500 sm:grid-cols-2 md:grid-cols-4 md:auto-rows-[250px]"
->
-  {list.map((p, i) => (
-    <Reveal
-      key={p.slug}
-      delay={i * 60}
-      className={cn(
-        "h-full min-w-0",
-        i % 8 === 0 && "md:col-span-2 md:row-span-2",
-        i % 8 === 3 && "md:row-span-2",
-        i % 8 === 5 && "md:col-span-2",
-      )}
-    >
-      <Link
-        to="/work/$slug"
-        params={{ slug: p.slug }}
-        className="glow-card group relative flex h-full min-h-[300px] flex-col overflow-hidden p-3 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_40px_-18px_var(--glow)] md:min-h-0"
+
+      <div role="tablist" aria-label="Filter projects" className="flex flex-wrap gap-2">
+        {categories.map((c) => (
+          <button
+            key={c}
+            role="tab"
+            aria-selected={cat === c}
+            onClick={() => setCat(c)}
+            className={cn(
+              "rounded-full border px-4 py-2 text-sm transition-colors",
+              cat === c
+                ? "border-transparent bg-primary text-primary-foreground shadow-[0_8px_24px_-8px_var(--glow)]"
+                : "border-input text-muted-foreground hover:border-primary hover:text-foreground",
+            )}
+          >
+            {c}
+            <span className="ml-2 text-xs opacity-60">
+              {c === "All Projects"
+                ? projects.length
+                : projects.filter((p) => p.category === c).length}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div
+        key={cat}
+        className="mt-8 grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-bottom-3 duration-500 sm:grid-cols-2 md:grid-cols-4 md:auto-rows-[250px]"
       >
-        <ProjectVisual
-        project={p}
-        zoom
-        className="aspect-[3/2] w-full shrink-0 overflow-hidden rounded-xl transition-transform duration-500 group-hover:scale-[1.03] md:aspect-auto md:min-h-0 md:flex-1"
-        />
+        {list.map((p, i) => (
+          <Reveal
+            key={p.slug}
+            delay={i * 60}
+            className={cn(
+              "h-full min-w-0",
+              i % 8 === 0 && "md:col-span-2 md:row-span-2",
+              i % 8 === 3 && "md:row-span-2",
+              i % 8 === 5 && "md:col-span-2",
+            )}
+          >
+            <Link
+              to="/work/$slug"
+              params={{ slug: p.slug }}
+              className="glow-card group relative flex h-full min-h-[300px] flex-col overflow-hidden p-3 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_40px_-18px_var(--glow)] md:min-h-0"
+            >
+              <ProjectVisual
+                project={p}
+                zoom
+                className="min-h-[150px] w-full flex-1 rounded-xl transition-transform duration-500 group-hover:scale-[1.03]"
+              />
 
-        <div className="mt-3 flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <h3 className="truncate font-display text-lg font-semibold">
-              {p.title}
-            </h3>
-            <p className="eyebrow mt-1.5 !text-[10px]">
-              {p.type} · {p.category}
-            </p>
-          </div>
+              <div className="mt-3 flex shrink-0 items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <h3 className="break-words font-display text-base font-semibold leading-snug md:text-lg">
+                    {p.title}
+                  </h3>
+                  <p className="eyebrow mt-1.5 text-[9px] leading-relaxed md:!text-[10px]">
+                    {p.type} · {p.category}
+                  </p>
+                </div>
 
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-input text-muted-foreground transition-all duration-300 group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground">
-            <ArrowUpRight className="h-4 w-4" />
-          </span>
-        </div>
-      </Link>
-    </Reveal>
-  ))}
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-input text-muted-foreground transition-all duration-300 group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground">
+                  <ArrowUpRight className="h-4 w-4" />
+                </span>
+              </div>
+            </Link>
+          </Reveal>
+        ))}
 
-  {list.length === 0 && (
-    <p className="text-muted-foreground">
-      No projects in this category yet.
-    </p>
-  )}
-</div>
+        {list.length === 0 && (
+          <p className="text-muted-foreground">
+            No projects in this category yet.
+          </p>
+        )}
+      </div>
       <Reveal className="mt-12 text-center">
         <a href={site.behance} target="_blank" rel="noreferrer" className="btn-ghost-pill">
           See every project on Behance <ArrowUpRight className="h-4 w-4" />
