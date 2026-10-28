@@ -111,19 +111,19 @@ function Hero() {
         </Reveal>
         <Reveal delay={100}>
           <h1 className="display-xl mx-auto mt-8 max-w-4xl">
-            Shaping <span className="text-primary">identities.</span>
+            Where <span className="text-primary">Strategy</span>
             <br />
-            Bringing brands <span className="text-hot">to life.</span>
+            Becomes <span className="text-hot">Identity</span>
           </h1>
         </Reveal>
         <Reveal delay={200}>
           <p className="mx-auto mt-7 max-w-xl text-lg text-muted-foreground">
-            I'm Hasib, a brand identity & product designer crafting identities people trust — and turning products into clear, shelf-ready visual stories.
+            I'm Hasibuzzaman, You can call me Hasib. I build distinctive brand identities through strategic thinking, purposeful design, and uncompromising attention to detail.
           </p>
         </Reveal>
         <Reveal delay={300}>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-            <a href="#work" className="btn-glow">See my work <ArrowDown className="h-4 w-4" /></a>
+            <a href="#work" className="btn-glow">Explore My Work <ArrowDown className="h-4 w-4" /></a>
             {site.email ? <CopyEmailButton /> : <a href="#contact" className="btn-ghost-pill">Let's talk <ArrowUpRight className="h-4 w-4" /></a>}
           </div>
         </Reveal>
@@ -176,44 +176,57 @@ function WorkList() {
         title={<>Every project, one place to <span className="text-primary">explore.</span></>}
         intro="Filter by discipline, or open a project to see the full story behind it."
       />
-      <div role="tablist" aria-label="Filter projects" className="flex flex-wrap gap-2">
-        {categories.map((c) => (
-          <button
-            key={c}
-            role="tab"
-            aria-selected={cat === c}
-            onClick={() => setCat(c)}
-            className={cn(
-              "rounded-full border px-4 py-2 text-sm transition-colors",
-              cat === c ? "border-transparent bg-primary text-primary-foreground shadow-[0_8px_24px_-8px_var(--glow)]" : "border-input text-muted-foreground hover:border-primary hover:text-foreground",
-            )}
-          >
-            {c}
-            <span className="ml-2 text-xs opacity-60">{c === "All Projects" ? projects.length : projects.filter((p) => p.category === c).length}</span>
-          </button>
-        ))}
-      </div>
-      <div key={cat} className="mt-8 grid gap-4 animate-in fade-in slide-in-from-bottom-3 duration-500">
-        {list.map((p, i) => (
-          <Reveal key={p.slug} delay={i * 60}>
-            <Link
-              to="/work/$slug"
-              params={{ slug: p.slug }}
-              className="glow-card group flex items-center gap-5 p-4 transition-transform hover:-translate-y-0.5"
-            >
-              <ProjectVisual project={p} className="h-20 w-28 shrink-0 rounded-xl md:h-24 md:w-36" />
-              <div className="min-w-0 flex-1">
-                <h3 className="truncate font-display text-lg font-semibold md:text-xl">{p.title}</h3>
-                <p className="eyebrow mt-1.5 !text-[10px]">{p.type} · {p.category}</p>
-              </div>
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-input text-muted-foreground transition-all group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground">
-                <ArrowUpRight className="h-4 w-4" />
-              </span>
-            </Link>
-          </Reveal>
-        ))}
-        {list.length === 0 && <p className="text-muted-foreground">No projects in this category yet.</p>}
-      </div>
+      
+<div
+  key={cat}
+  className="mt-8 grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-bottom-3 duration-500 sm:grid-cols-2 md:grid-cols-4 md:auto-rows-[250px]"
+>
+  {list.map((p, i) => (
+    <Reveal
+      key={p.slug}
+      delay={i * 60}
+      className={cn(
+        "h-full min-w-0",
+        i % 8 === 0 && "md:col-span-2 md:row-span-2",
+        i % 8 === 3 && "md:row-span-2",
+        i % 8 === 5 && "md:col-span-2",
+      )}
+    >
+      <Link
+        to="/work/$slug"
+        params={{ slug: p.slug }}
+        className="glow-card group relative flex h-full min-h-[300px] flex-col overflow-hidden p-3 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_40px_-18px_var(--glow)] md:min-h-0"
+      >
+        <ProjectVisual
+        project={p}
+        zoom
+        className="aspect-[3/2] w-full shrink-0 overflow-hidden rounded-xl transition-transform duration-500 group-hover:scale-[1.03] md:aspect-auto md:min-h-0 md:flex-1"
+        />
+
+        <div className="mt-3 flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate font-display text-lg font-semibold">
+              {p.title}
+            </h3>
+            <p className="eyebrow mt-1.5 !text-[10px]">
+              {p.type} · {p.category}
+            </p>
+          </div>
+
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-input text-muted-foreground transition-all duration-300 group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground">
+            <ArrowUpRight className="h-4 w-4" />
+          </span>
+        </div>
+      </Link>
+    </Reveal>
+  ))}
+
+  {list.length === 0 && (
+    <p className="text-muted-foreground">
+      No projects in this category yet.
+    </p>
+  )}
+</div>
       <Reveal className="mt-12 text-center">
         <a href={site.behance} target="_blank" rel="noreferrer" className="btn-ghost-pill">
           See every project on Behance <ArrowUpRight className="h-4 w-4" />
@@ -305,8 +318,10 @@ function About() {
     { v: "6+", l: "Industries served" },
   ];
   const toolkit = [
-    { name: "Adobe Illustrator", use: "Logos, marks and vector systems" },
-    { name: "Adobe Photoshop", use: "Mockups and image work" },
+    { name: "Adobe Illustrator", use: "Logos, packaging, marks and vector systems" },
+    { name: "Adobe Photoshop", use: "Profesonal retouching, Mockups and image work" },
+    { name: "Adobe After Effect", use: "Animations and motion graphics" },
+    { name: "Adobe Premiere Pro", use: "Video editing, assemble video clips and audio tracks" },
     { name: "Figma", use: "Brand guidelines, layouts and presentations" },
   ];
   return (
