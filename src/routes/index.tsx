@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowUpRight, ArrowDown, ArrowRight, Copy, Check, Sparkles } from "lucide-react";
+import { ArrowUpRight, ArrowDown, Copy, Check, Sparkles } from "lucide-react";
 import { SiteNav, SiteFooter } from "@/components/site/Chrome";
 import { ProjectVisual } from "@/components/site/ProjectVisual";
 import { Reveal } from "@/components/site/Reveal";
