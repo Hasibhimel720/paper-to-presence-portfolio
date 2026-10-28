@@ -10,9 +10,9 @@ export const Route = createFileRoute("/work/$slug")({
     const i = projects.findIndex((p) => p.slug === params.slug);
     if (i < 0) throw notFound();
     return {
-      project: projects[i],
-      prev: projects[(i - 1 + projects.length) % projects.length],
-      next: projects[(i + 1) % projects.length],
+      project: projects[i]!,
+      prev: projects[(i - 1 + projects.length) % projects.length]!,
+      next: projects[(i + 1) % projects.length]!,
     };
   },
   head: ({ loaderData }) => {
