@@ -7,6 +7,8 @@ import { Reveal } from "@/components/site/Reveal";
 import { ContactForm } from "@/components/site/ContactForm";
 import { categories, experience, faqs, featuredSlugs, process, projects, services, site, type Project } from "@/data/portfolio";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import studioImage from "@/assets/creative-studio.jpg";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -52,7 +54,7 @@ function SectionHead({ index, label, title, intro }: { index: string; label: str
         <span className="text-primary">{index}</span> — {label}
       </p>
       <div className="md:col-span-9">
-        <h2 className="display-lg max-w-5xl">{title}</h2>
+        <h2 className="display-lg section-title max-w-5xl">{title}</h2>
         {intro && <p className="mt-6 max-w-2xl text-lg text-muted-foreground">{intro}</p>}
       </div>
     </Reveal>
@@ -61,59 +63,25 @@ function SectionHead({ index, label, title, intro }: { index: string; label: str
 
 /* ---------- Hero ---------- */
 function Hero() {
-  const [a, b, c] = [bySlug("garden-green-fresh-tea"), bySlug("nakano-international"), bySlug("ghee-jar-label")];
   return (
-    <section className="relative min-h-[100svh] pt-28 pb-16 md:pt-32 grid-lines">
-      <div className="container-x relative">
-        <div className="flex items-center justify-between eyebrow">
-          <span className="inline-flex items-center gap-2">
-            <span className={cn("h-2 w-2 rounded-full", site.available ? "bg-success animate-pulse" : "bg-muted-foreground")} />
-            {site.availability}
-          </span>
-          <span className="hidden sm:inline">Based in {site.location}</span>
+    <section className="creative-hero relative isolate">
+      <img src={studioImage} alt="Colorful paper, packaging forms and chrome arranged in a creative studio" width={1920} height={1088} fetchPriority="high" className="hero-art absolute inset-0 -z-20 h-full w-full object-cover" />
+      <div className="hero-shade absolute inset-0 -z-10" />
+      <div className="container-x relative pt-32 pb-8 md:pt-36">
+        <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-2"><span className={cn("h-2 w-2 rounded-full", site.available ? "bg-primary" : "bg-muted-foreground")} />{site.availability}</span>
+          <span className="hidden sm:inline">Independent designer · {site.location}</span>
         </div>
-
-        <h1 className="display-xl mt-10 md:mt-14">
-          <span className="block">From Brand Idea</span>
-          <span className="block">
-            <span className="text-outline">to</span> Shelf <span className="text-primary">Presence.</span>
-          </span>
-        </h1>
-
-        <div className="mt-12 grid gap-10 lg:grid-cols-12 lg:items-end">
-          <div className="lg:col-span-4 lg:order-2">
-            <p className="text-lg leading-relaxed text-muted-foreground">
-              I'm <span className="text-foreground">Hasib Himel</span>, a brand identity and product designer creating distinctive visual identities,
-              thoughtful packaging, and compelling product visuals that bring brands to life.
-            </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <a href="#work" className="group inline-flex items-center justify-between gap-6 bg-foreground px-6 py-4 text-sm font-medium text-background transition-colors hover:bg-primary hover:text-primary-foreground">
-                Explore My Work <ArrowDown className="h-4 w-4 transition-transform group-hover:translate-y-0.5" />
-              </a>
-              <a href="#contact" className="inline-flex items-center justify-between gap-6 border border-foreground/30 px-6 py-4 text-sm transition-colors hover:border-foreground">
-                Let's Work Together <ArrowUpRight className="h-4 w-4" />
-              </a>
-            </div>
-          </div>
-          <div className="lg:col-span-8 lg:order-1 grid grid-cols-6 grid-rows-[repeat(2,minmax(0,1fr))] gap-3 h-[52vh] min-h-[340px] max-h-[560px]">
-            <Link to="/work/$slug" params={{ slug: a.slug }} className="group col-span-4 row-span-2">
-              <ProjectVisual project={a} zoom className="h-full" label="Garden Green Fresh Tea packaging" />
-            </Link>
-            <Link to="/work/$slug" params={{ slug: b.slug }} className="group col-span-2">
-              <ProjectVisual project={b} zoom className="h-full" label="Nakano identity" />
-            </Link>
-            <Link to="/work/$slug" params={{ slug: c.slug }} className="group col-span-2">
-              <ProjectVisual project={c} zoom className="h-full" label="Ghee label" />
-            </Link>
+        <div className="hero-copy mt-14 md:mt-16">
+          <p className="eyebrow text-primary">Brand identity & product design</p>
+          <h1 className="hero-name mt-6"><span className="block">HASIB</span><span className="block text-primary">HIMEL<span className="hero-asterisk text-hot">✳</span></span></h1>
+          <p className="mt-7 max-w-sm text-lg text-foreground/80">From brand idea to shelf presence.<br />Distinctive identities. Thoughtful packaging.<br />Design with a point of view.</p>
+          <div className="mt-8 flex flex-wrap items-center gap-4">
+            <Button asChild className="h-12 rounded-none px-6"><a href="#work">Explore my work <ArrowDown /></a></Button>
+            <Button asChild variant="link" className="h-12 px-0 text-foreground"><a href="#contact">Let's talk <ArrowUpRight /></a></Button>
           </div>
         </div>
-
-        <a href="#overview" className="mt-14 hidden md:inline-flex items-center gap-3 eyebrow hover:text-foreground">
-          <span className="relative h-9 w-5 rounded-full border border-foreground/30">
-            <span className="absolute left-1/2 top-1.5 h-1.5 w-1 -translate-x-1/2 rounded-full bg-foreground animate-scroll-dot" />
-          </span>
-          Scroll
-        </a>
+        <div className="mt-12 flex items-center justify-between border-t border-foreground/20 pt-5 text-xs text-muted-foreground"><span>Creative thinking. Tangible impact.</span><a href="#work" className="flex items-center gap-2 text-foreground">Selected work <ArrowDown className="h-4 w-4" /></a></div>
       </div>
     </section>
   );
@@ -124,11 +92,11 @@ function Overview() {
   const tags = ["Brand Identity", "Packaging Design", "Product Advertising", "Visual Communication"];
   return (
     <section id="overview" className="border-y border-border">
-      <div className="overflow-hidden border-b border-border py-5">
-        <div className="flex w-max animate-marquee gap-10 font-display text-2xl text-muted-foreground md:text-4xl">
+      <div className="overflow-hidden border-b border-border bg-primary py-5 text-primary-foreground">
+        <div className="flex w-max animate-marquee gap-10 font-display text-2xl md:text-4xl">
           {[...tags, ...tags, ...tags, ...tags].map((t, i) => (
             <span key={i} className="flex items-center gap-10 whitespace-nowrap">
-              {t} <span className="text-primary">✦</span>
+              {t} <span>✳</span>
             </span>
           ))}
         </div>
@@ -177,7 +145,7 @@ function SelectedWork() {
       <SectionHead
         index="01"
         label="Selected Work"
-        title={<>Ideas become identities. <span className="text-muted-foreground">Identities become experiences.</span></>}
+        title={<>Selected <span className="text-hot">work.</span><span className="mt-4 block text-xl text-muted-foreground md:text-2xl">Ideas become identities. Identities become experiences.</span></>}
         intro="A curated collection of brand identities, packaging concepts, and commercial visuals created to give brands a distinctive visual direction and a stronger product presence."
       />
       <div className="grid gap-x-6 gap-y-16 md:grid-cols-12 md:gap-y-24">
@@ -197,7 +165,7 @@ function Explorer() {
   const [cat, setCat] = useState<(typeof categories)[number]>("All Projects");
   const list = cat === "All Projects" ? projects : projects.filter((p) => p.category === cat);
   return (
-    <section className="bg-paper text-paper-foreground">
+    <section className="portfolio-archive bg-paper text-paper-foreground">
       <div className="container-x py-24 md:py-32">
         <Reveal className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
           <div>
@@ -208,19 +176,19 @@ function Explorer() {
         </Reveal>
         <div role="tablist" aria-label="Filter projects" className="mt-12 -mx-5 flex gap-2 overflow-x-auto px-5 pb-2 md:mx-0 md:flex-wrap md:px-0">
           {categories.map((c) => (
-            <button
+            <Button variant="ghost"
               key={c}
               role="tab"
               aria-selected={cat === c}
               onClick={() => setCat(c)}
               className={cn(
-                "whitespace-nowrap border px-4 py-2 text-sm transition-colors",
+                "h-auto rounded-none whitespace-nowrap border px-4 py-2 text-sm transition-colors",
                 cat === c ? "border-paper-foreground bg-paper-foreground text-paper" : "border-paper-foreground/20 hover:border-paper-foreground",
               )}
             >
               {c}
               <span className="ml-2 text-xs opacity-60">{c === "All Projects" ? projects.length : projects.filter((p) => p.category === c).length}</span>
-            </button>
+            </Button>
           ))}
         </div>
         <div key={cat} className="mt-10 grid gap-x-5 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 animate-in fade-in slide-in-from-bottom-3 duration-500">
@@ -244,7 +212,7 @@ function Explorer() {
 function Services() {
   const [open, setOpen] = useState(0);
   return (
-    <section id="services" className="container-x py-24 md:py-36 scroll-mt-16">
+    <section id="services" className="service-section container-x py-24 md:py-36 scroll-mt-16">
       <SectionHead
         index="03"
         label="Services"
@@ -256,18 +224,18 @@ function Services() {
           const active = open === i;
           return (
             <div key={s.n} className="border-b border-border">
-              <button
+              <Button variant="ghost"
                 aria-expanded={active}
                 onClick={() => setOpen(active ? -1 : i)}
                 onMouseEnter={() => window.matchMedia("(hover: hover)").matches && setOpen(i)}
-                className="group grid w-full grid-cols-[3rem_1fr_auto] items-center gap-4 py-7 text-left md:grid-cols-[6rem_1fr_auto] md:py-9"
+                className="group grid h-auto w-full whitespace-normal rounded-none grid-cols-[3rem_1fr_auto] items-center gap-4 px-0 py-7 text-left md:grid-cols-[6rem_1fr_auto] md:py-9"
               >
                 <span className={cn("font-display text-sm transition-colors", active ? "text-primary" : "text-muted-foreground")}>{s.n}</span>
                 <span className={cn("font-display text-2xl md:text-5xl tracking-tight transition-colors", active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground")}>
                   {s.title}
                 </span>
                 <Plus className={cn("h-5 w-5 transition-transform duration-500", active && "rotate-45 text-primary")} />
-              </button>
+              </Button>
               <div className={cn("grid transition-all duration-500 ease-out", active ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
                 <div className="overflow-hidden">
                   <div className="grid gap-6 pb-10 md:grid-cols-[6rem_1fr_1fr] md:pl-0 pl-16">
@@ -295,8 +263,8 @@ function About() {
     <section id="about" className="bg-surface scroll-mt-16">
       <div className="container-x py-24 md:py-36 grid gap-14 md:grid-cols-12">
         <Reveal className="md:col-span-5">
-          <div className="relative aspect-[4/5] bg-surface-2 grid-lines flex items-center justify-center">
-            <span className="font-display text-[8rem] font-semibold leading-none text-foreground/10">HH</span>
+          <div className="about-monogram relative aspect-[4/5] bg-surface-2 flex items-center justify-center">
+            <span className="font-display text-[8rem] font-semibold leading-none text-primary">HH<span className="block text-center text-hot">✳</span></span>
             <span className="absolute bottom-3 left-3 bg-background/80 px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
               Placeholder · Replace with professional portrait
             </span>
@@ -403,7 +371,7 @@ function Faq() {
 /* ---------- Contact ---------- */
 function Contact() {
   return (
-    <section id="contact" className="relative border-t border-border grid-lines scroll-mt-16">
+    <section id="contact" className="contact-section relative border-t border-border scroll-mt-16">
       <div className="container-x py-24 md:py-36 grid gap-16 lg:grid-cols-12">
         <div className="lg:col-span-5">
           <p className="eyebrow"><span className="text-primary">08</span> — Contact</p>

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Menu, X, ArrowUpRight } from "lucide-react";
 import { site } from "@/data/portfolio";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 const links = [
   { href: "work", label: "Work" },
@@ -29,12 +30,12 @@ export function SiteNav() {
     <header
       className={cn(
         "fixed inset-x-0 top-0 z-50 transition-all duration-500",
-        scrolled || open ? "bg-background/85 backdrop-blur-md border-b border-border" : "border-b border-transparent",
+        scrolled || open ? "bg-background/85 backdrop-blur-md border-b border-border" : "bg-background/75 backdrop-blur-md border-b border-transparent",
       )}
     >
       <div className={cn("container-x flex items-center justify-between transition-all", scrolled ? "h-16" : "h-20")}>
         <Link to="/" className="group flex flex-col leading-none" onClick={() => setOpen(false)}>
-          <span className="font-display text-base font-semibold tracking-[0.12em]">HASIB HIMEL</span>
+          <span className="font-display text-base font-semibold">HASIB HIMEL <span className="ml-1 text-xl text-primary">✳</span></span>
           <span className="mt-1 hidden text-[9px] tracking-[0.24em] text-muted-foreground sm:block">BRAND IDENTITY & PRODUCT DESIGN</span>
         </Link>
         <nav aria-label="Primary" className="hidden items-center gap-8 md:flex">
@@ -46,19 +47,19 @@ export function SiteNav() {
           <Link
             to="/"
             hash="contact"
-            className="inline-flex items-center gap-1.5 border border-foreground/30 px-4 py-2 text-sm transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
+            className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-2 text-sm transition-colors hover:bg-primary/80"
           >
             Let's Talk <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </nav>
-        <button
-          className="md:hidden -mr-2 p-2"
+        <Button variant="ghost" size="icon"
+          className="md:hidden -mr-2"
           aria-label={open ? "Close menu" : "Open menu"}
           aria-expanded={open}
           onClick={() => setOpen((o) => !o)}
         >
           {open ? <X /> : <Menu />}
-        </button>
+        </Button>
       </div>
       {open && (
         <nav aria-label="Mobile" className="md:hidden h-[calc(100dvh-5rem)] container-x flex flex-col pt-8 pb-10">
