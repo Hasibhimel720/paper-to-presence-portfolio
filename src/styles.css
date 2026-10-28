@@ -183,13 +183,13 @@
 .service-section > div:last-child > div:nth-child(3n+3) [aria-expanded="true"] { color: var(--tangerine); }
 .about-monogram { background-image: repeating-linear-gradient(-45deg, transparent 0 32px, var(--art-line) 32px 33px); border-bottom: 8px solid var(--hot); }
 .contact-section { border-top: 5px solid var(--primary); }
-.project-preview { color: var(--art-foreground); }
+.project-preview { color: var(--art-foreground); container-type: inline-size; }
 .project-preview::before { content: ""; position: absolute; inset: -30%; border: 1px solid var(--art-line); transform: rotate(-24deg); background: repeating-linear-gradient(90deg, transparent 0 80px, var(--art-line) 80px 81px); }
-.preview-pack { width: 29%; aspect-ratio: 3 / 4.6; background: var(--paper); box-shadow: var(--art-shadow); color: var(--primary); border-top: 10px solid var(--primary); padding: 8%; display: flex; flex-direction: column; justify-content: space-between; transform: rotate(-9deg); }
+.preview-pack { width: 29%; aspect-ratio: 3 / 4.6; background: var(--paper); box-shadow: var(--art-shadow); color: var(--primary); border-top: 10px solid var(--primary); padding: 3%; display: flex; flex-direction: column; justify-content: space-between; transform: rotate(-9deg); }
 .preview-pack + .preview-pack { transform: rotate(9deg) translateY(10%); color: var(--hot); border-color: var(--hot); }
-.preview-wordmark { font-size: 58px; line-height: 1; font-weight: 600; max-width: 82%; text-wrap: balance; text-align: center; }
-.preview-wordmark .preview-symbol { display: block; font-size: 100px; margin-bottom: 18px; }
-.preview-pack-name { font-size: 20px; line-height: 1.05; font-weight: 600; }
+.preview-wordmark { font-size: clamp(22px, 7cqi, 58px); line-height: 1; font-weight: 600; max-width: 82%; text-wrap: balance; text-align: center; }
+.preview-wordmark .preview-symbol { display: block; font-size: clamp(40px, 15cqi, 100px); margin-bottom: 18px; }
+.preview-pack-name { font-size: clamp(10px, 3cqi, 24px); line-height: 1.05; font-weight: 600; overflow-wrap: anywhere; }
 @keyframes turn-mark { to { transform: rotate(360deg); } }
 @media (min-width: 1600px) { .creative-hero { min-height: 820px; } }
 @media (max-width: 767px) {
@@ -200,9 +200,6 @@
   .hero-asterisk { font-size: 46px; margin-left: 8px; }
   .hero-copy { margin-top: 96px; }
   .section-title { font-size: 2.8rem; }
-  .preview-wordmark { font-size: 32px; }
-  .preview-wordmark .preview-symbol { font-size: 64px; }
-  .preview-pack-name { font-size: 14px; }
 }
 @media (max-width: 359px) { .hero-name { font-size: 68px; } .hero-asterisk { font-size: 38px; } }
 @media (prefers-reduced-motion: reduce) { .hero-asterisk { animation: none; } }

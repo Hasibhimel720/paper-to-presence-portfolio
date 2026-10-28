@@ -30,7 +30,7 @@ export function SiteNav() {
     <header
       className={cn(
         "fixed inset-x-0 top-0 z-50 transition-all duration-500",
-        scrolled || open ? "bg-background/85 backdrop-blur-md border-b border-border" : "border-b border-transparent",
+        scrolled || open ? "bg-background/85 backdrop-blur-md border-b border-border" : "bg-background/75 backdrop-blur-md border-b border-transparent",
       )}
     >
       <div className={cn("container-x flex items-center justify-between transition-all", scrolled ? "h-16" : "h-20")}>
