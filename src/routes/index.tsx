@@ -45,7 +45,7 @@ function Index() {
   );
 }
 
-function SectionHead({ index, label, title, intro }: { index: string; label: string; title: React.ReactNode; intro?: string }) {
+function SectionHead({ index, label, title, intro }: { index: string; label: string; title: React.ReactNode; intro?: string | undefined }) {
   return (
     <Reveal className="mb-14 md:mb-20 grid gap-6 md:grid-cols-12">
       <p className="eyebrow md:col-span-3">
@@ -149,7 +149,7 @@ function Overview() {
 }
 
 /* ---------- Selected work ---------- */
-function WorkCard({ p, className, aspect, i }: { p: Project; className?: string; aspect: string; i: number }) {
+function WorkCard({ p, className, aspect, i }: { p: Project; className?: string | undefined; aspect: string; i: number }) {
   return (
     <Reveal className={className} delay={(i % 2) * 120}>
       <Link to="/work/$slug" params={{ slug: p.slug }} className="group block">

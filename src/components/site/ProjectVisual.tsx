@@ -14,7 +14,7 @@ const toneBg: Record<Tone, string> = {
 
 type Props = {
   project: Pick<Project, "title" | "tone" | "cover" | "placeholder" | "category">;
-  label?: string;
+  label?: string | undefined;
   className?: string;
   zoom?: boolean;
 };
