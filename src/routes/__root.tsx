@@ -83,7 +83,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "author", content: "Hasib Himel" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "theme-color", content: "#0B0B0D" },
+      { name: "theme-color", content: "#060a18" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
