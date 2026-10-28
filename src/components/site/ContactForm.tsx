@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { ArrowUpRight, Info, CheckCircle2 } from "lucide-react";
+import { ArrowUpRight, Info } from "lucide-react";
 import { site } from "@/data/portfolio";
 
 type Errors = Partial<Record<"name" | "email" | "details", string>>;
@@ -91,4 +91,3 @@ function Field({ label, error, className, children }: { label: string; error?: s
   );
 }
 
-export { CheckCircle2 };
