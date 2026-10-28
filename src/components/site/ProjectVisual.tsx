@@ -35,8 +35,7 @@ export function ProjectVisual({ project, label, className, zoom }: Props) {
   }
   const isPack = project.category === "Packaging Design";
   return (
-    <div className={cn("relative isolate overflow-hidden", toneBg[project.tone], className)}>
-      <div className="absolute inset-0 grid-lines opacity-60" />
+    <div className={cn("project-preview relative isolate overflow-hidden", toneBg[project.tone], className)}>
       <div
         className={cn(
           "absolute inset-0 flex items-center justify-center transition-transform duration-[1.2s] ease-out",
@@ -44,23 +43,20 @@ export function ProjectVisual({ project, label, className, zoom }: Props) {
         )}
       >
         {isPack ? (
-          <div className="flex items-end gap-[3%] h-[48%]">
-            <div className="h-[78%] aspect-[3/5] rounded-sm bg-background/25 border border-foreground/20 shadow-2xl" />
-            <div className="h-full aspect-[3/5] rounded-sm bg-background/40 border border-foreground/25 shadow-2xl flex flex-col justify-center px-[8%]">
-              <span className="h-[3px] w-1/2 bg-foreground/70" />
-              <span className="mt-2 h-[2px] w-3/4 bg-foreground/40" />
-            </div>
-            <div className="h-[60%] aspect-square rounded-full bg-background/25 border border-foreground/20 shadow-2xl" />
+          <div className="flex w-full items-center justify-center gap-[5%]">
+            <div className="preview-pack"><span className="text-3xl">✳</span><span className="preview-pack-name">{project.title}</span><span className="text-[8px] uppercase">Packaging study</span></div>
+            <div className="preview-pack"><span className="text-3xl">✳</span><span className="preview-pack-name">{project.title}</span><span className="text-[8px] uppercase">Packaging study</span></div>
           </div>
         ) : (
-          <span className="font-display font-semibold text-foreground/85 text-[clamp(2.5rem,9vw,7rem)] leading-none tracking-tighter">
-            {project.title.split(" ").map((w) => w[0]).join("").slice(0, 2)}
+          <span className="preview-wordmark font-display">
+            <span className="preview-symbol">{project.tone === "steel" ? "↗" : "✳"}</span>
+            {project.title}
           </span>
         )}
       </div>
       <div className="absolute left-3 bottom-3 right-3 flex">
         <span className="max-w-full truncate rounded-sm bg-background/80 px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-muted-foreground backdrop-blur">
-          Placeholder · {label ?? project.placeholder}
+          Illustrative preview · {label ?? "Original artwork pending"}
         </span>
       </div>
     </div>
