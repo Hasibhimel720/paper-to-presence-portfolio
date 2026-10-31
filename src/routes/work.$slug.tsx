@@ -3,22 +3,27 @@ import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
 import { SiteNav, SiteFooter } from "@/components/site/Chrome";
 import { ProjectVisual } from "@/components/site/ProjectVisual";
 import { Reveal } from "@/components/site/Reveal";
-import { projects } from "@/data/portfolio";
+import { getPublicThemeStyle, loadPublicPortfolio } from "@/lib/cms/public-content";
+import type { ContentSnapshot, Project } from "@/lib/cms/schema";
 
 export const Route = createFileRoute("/work/$slug")({
-  loader: ({ params }) => {
-    const i = projects.findIndex((p) => p.slug === params.slug);
-    if (i < 0) throw notFound();
-    return {
-      project: projects[i]!,
-      prev: projects[(i - 1 + projects.length) % projects.length]!,
-      next: projects[(i + 1) % projects.length]!,
-    };
+  loader: async ({ params }) => {
+    const portfolio = await loadPublicPortfolio();
+    const projects = portfolio.content.projects;
+    const index = projects.findIndex((project) => project.slug === params.slug);
+    if (index < 0) throw notFound();
+    const project = projects[index];
+    const prev = projects[(index - 1 + projects.length) % projects.length];
+    const next = projects[(index + 1) % projects.length];
+    if (!project || !prev || !next) throw notFound();
+    return { project, prev, next, snapshot: portfolio.snapshot, mediaUrls: portfolio.mediaUrls };
   },
   head: ({ loaderData }) => {
     const p = loaderData?.project;
     const title = p ? `${p.title} — ${p.type} | Hasib Himel` : "Project unavailable | Hasib Himel";
     const desc = p?.description ?? "Project case study by Hasib Himel.";
+    const image = p?.cover;
+    const seo = loaderData?.snapshot.seo;
     return {
       meta: [
         { title },
@@ -26,7 +31,11 @@ export const Route = createFileRoute("/work/$slug")({
         { property: "og:title", content: title },
         { property: "og:description", content: desc },
         { property: "og:type", content: "article" },
-        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:card", content: seo?.social.twitterCard ?? "summary_large_image" },
+        { name: "twitter:title", content: title },
+        { name: "twitter:description", content: desc },
+        ...(image ? [{ property: "og:image", content: image }] : []),
+        ...(image ? [{ name: "twitter:image", content: image }] : []),
         ...(p ? [] : [{ name: "robots", content: "noindex" }]),
       ],
     };
@@ -34,29 +43,75 @@ export const Route = createFileRoute("/work/$slug")({
   notFoundComponent: () => (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-6 text-center">
       <h1 className="display-lg">Project not found</h1>
-      <Link to="/" hash="work" className="underline">Back to work</Link>
+      <Link to="/" hash="work" className="underline">
+        Back to work
+      </Link>
     </div>
   ),
   component: CaseStudy,
 });
 
 function CaseStudy() {
-  const { project: p, prev, next } = Route.useLoaderData();
+  const { project: p, prev, next, snapshot, mediaUrls } = Route.useLoaderData();
   return (
-    <div className="overflow-x-clip">
-      <SiteNav />
+    <CaseStudyPage project={p} prev={prev} next={next} snapshot={snapshot} mediaUrls={mediaUrls} />
+  );
+}
+
+export function CaseStudyPage({
+  project: p,
+  prev,
+  next,
+  snapshot,
+  mediaUrls = {},
+}: {
+  project: Project;
+  prev: Project;
+  next: Project;
+  snapshot?: ContentSnapshot | undefined;
+  mediaUrls?: Record<string, string> | undefined;
+}) {
+  const cmsProject = snapshot?.projects.find((project) => project.slug === p.slug);
+  const cmsSections = new Map(cmsProject?.sections.map((section) => [section.title, section]));
+  const mediaAssets = new Map(snapshot?.media.map((asset) => [asset.id, asset]) ?? []);
+  return (
+    <div
+      className={
+        snapshot?.origin === "cms" ? "overflow-x-clip portfolio-public" : "overflow-x-clip"
+      }
+      style={getPublicThemeStyle(snapshot)}
+    >
+      <SiteNav snapshot={snapshot} />
       <main className="pt-28 md:pt-36">
         <section className="container-x">
-          <Link to="/" hash="work" className="eyebrow inline-flex items-center gap-2 hover:text-foreground">
+          <Link
+            to="/"
+            hash="work"
+            className="eyebrow inline-flex items-center gap-2 hover:text-foreground"
+          >
             <ArrowLeft className="h-3.5 w-3.5" /> All work
           </Link>
           <div className="mt-10 grid gap-8 md:grid-cols-12 md:items-end">
-            <h1 className="display-xl md:col-span-8 !text-[clamp(2.75rem,8vw,7.5rem)]">{p.title}</h1>
+            <h1 className="display-xl md:col-span-8 !text-[clamp(2.75rem,8vw,7.5rem)]">
+              {p.title}
+            </h1>
             <dl className="md:col-span-4 grid grid-cols-2 gap-6 text-sm">
-              <div><dt className="eyebrow">Discipline</dt><dd className="mt-2">{p.type}</dd></div>
-              <div><dt className="eyebrow">Category</dt><dd className="mt-2">{p.category}</dd></div>
-              <div><dt className="eyebrow">Client</dt><dd className="mt-2 text-muted-foreground">[If approved]</dd></div>
-              <div><dt className="eyebrow">Year</dt><dd className="mt-2 text-muted-foreground">{p.year ?? "[Verify]"}</dd></div>
+              <div>
+                <dt className="eyebrow">Discipline</dt>
+                <dd className="mt-2">{p.type}</dd>
+              </div>
+              <div>
+                <dt className="eyebrow">Category</dt>
+                <dd className="mt-2">{p.category}</dd>
+              </div>
+              <div>
+                <dt className="eyebrow">Client</dt>
+                <dd className="mt-2 text-muted-foreground">[If approved]</dd>
+              </div>
+              <div>
+                <dt className="eyebrow">Year</dt>
+                <dd className="mt-2 text-muted-foreground">{p.year ?? "[Verify]"}</dd>
+              </div>
             </dl>
           </div>
           <p className="mt-10 max-w-2xl text-xl text-muted-foreground">{p.description}</p>
@@ -66,28 +121,76 @@ function CaseStudy() {
           <ProjectVisual project={p} className="aspect-[4/3] md:aspect-[16/8]" />
         </Reveal>
 
+        {p.gallery && p.gallery.length > 0 && (
+          <section
+            aria-label={`${p.title} project gallery`}
+            className="container-x mt-10 grid gap-4 sm:grid-cols-2"
+          >
+            {p.gallery.map((image) => (
+              <figure key={image.id} className="overflow-hidden rounded-xl border border-border">
+                <img
+                  src={image.src}
+                  alt={image.alt}
+                  loading="lazy"
+                  className="h-full w-full object-cover"
+                />
+              </figure>
+            ))}
+          </section>
+        )}
+
         <div className="container-x mt-24 md:mt-36 space-y-24 md:space-y-36">
           {p.sections.map((s, i) => (
             <Reveal key={s.title}>
               <section className="grid gap-8 md:grid-cols-12">
                 <div className="md:col-span-4">
-                  <p className="eyebrow"><span className="text-primary">0{i + 1}</span> — {s.title}</p>
+                  <p className="eyebrow">
+                    <span className="text-primary">0{i + 1}</span> — {s.title}
+                  </p>
                 </div>
                 <div className="md:col-span-8">
                   <p className="text-xl md:text-2xl leading-snug text-muted-foreground">{s.body}</p>
-                  {s.visual && <ProjectVisual project={p} label={s.visual} className="mt-10 aspect-[4/3] md:aspect-[16/10]" />}
+                  {s.visual && (
+                    <ProjectVisual
+                      project={p}
+                      label={s.visual}
+                      className="mt-10 aspect-[4/3] md:aspect-[16/10]"
+                    />
+                  )}
+                  {cmsSections.get(s.title)?.media.map((reference) => {
+                    const asset = mediaAssets.get(reference.mediaId);
+                    const src =
+                      mediaUrls[reference.mediaId] ??
+                      (asset?.source.kind === "url" ? asset.source.url : undefined);
+                    return src ? (
+                      <img
+                        key={reference.mediaId}
+                        src={src}
+                        alt={reference.alt}
+                        loading="lazy"
+                        className="mt-10 max-h-[75vh] w-full rounded-xl border border-border object-cover"
+                      />
+                    ) : null;
+                  })}
                 </div>
               </section>
             </Reveal>
           ))}
 
-          {p.palette && (
+          {p.palette && p.palette.length > 0 && (
             <Reveal>
               <section className="grid gap-8 md:grid-cols-12">
-                <p className="eyebrow md:col-span-4">Color system <span className="normal-case tracking-normal">[replace with brand values]</span></p>
+                <p className="eyebrow md:col-span-4">
+                  Color system{" "}
+                  <span className="normal-case tracking-normal">[replace with brand values]</span>
+                </p>
                 <div className="md:col-span-8 grid grid-cols-3 gap-3">
                   {p.palette.map((c) => (
-                    <div key={c} className="aspect-[3/4] border border-border" style={{ background: c }} />
+                    <div
+                      key={c}
+                      className="aspect-[3/4] border border-border"
+                      style={{ background: c }}
+                    />
                   ))}
                 </div>
               </section>
@@ -98,23 +201,43 @@ function CaseStudy() {
         <section className="container-x mt-32 border-t border-border py-20 text-center">
           <p className="eyebrow">Have a similar project?</p>
           <h2 className="display-lg mt-6">Let's talk about your brand.</h2>
-          <Link to="/" hash="contact" className="mt-10 inline-flex items-center gap-3 bg-foreground px-7 py-4 text-sm font-medium text-background hover:bg-primary hover:text-primary-foreground">
+          <Link
+            to="/"
+            hash="contact"
+            className="mt-10 inline-flex items-center gap-3 bg-foreground px-7 py-4 text-sm font-medium text-background hover:bg-primary hover:text-primary-foreground"
+          >
             Discuss a project <ArrowUpRight className="h-4 w-4" />
           </Link>
         </section>
 
         <nav aria-label="Project navigation" className="grid border-t border-border md:grid-cols-2">
-          <Link to="/work/$slug" params={{ slug: prev.slug }} className="group container-x !mx-0 py-10 md:border-r border-border border-b md:border-b-0 hover:bg-surface">
-            <span className="eyebrow inline-flex items-center gap-2"><ArrowLeft className="h-3.5 w-3.5" /> Previous</span>
-            <p className="mt-3 font-display text-2xl md:text-4xl group-hover:text-primary">{prev.title}</p>
+          <Link
+            to="/work/$slug"
+            params={{ slug: prev.slug }}
+            className="group container-x !mx-0 py-10 md:border-r border-border border-b md:border-b-0 hover:bg-surface"
+          >
+            <span className="eyebrow inline-flex items-center gap-2">
+              <ArrowLeft className="h-3.5 w-3.5" /> Previous
+            </span>
+            <p className="mt-3 font-display text-2xl md:text-4xl group-hover:text-primary">
+              {prev.title}
+            </p>
           </Link>
-          <Link to="/work/$slug" params={{ slug: next.slug }} className="group container-x !mx-0 py-10 text-right hover:bg-surface">
-            <span className="eyebrow inline-flex items-center gap-2">Next <ArrowRight className="h-3.5 w-3.5" /></span>
-            <p className="mt-3 font-display text-2xl md:text-4xl group-hover:text-primary">{next.title}</p>
+          <Link
+            to="/work/$slug"
+            params={{ slug: next.slug }}
+            className="group container-x !mx-0 py-10 text-right hover:bg-surface"
+          >
+            <span className="eyebrow inline-flex items-center gap-2">
+              Next <ArrowRight className="h-3.5 w-3.5" />
+            </span>
+            <p className="mt-3 font-display text-2xl md:text-4xl group-hover:text-primary">
+              {next.title}
+            </p>
           </Link>
         </nav>
       </main>
-      <SiteFooter />
+      <SiteFooter snapshot={snapshot} />
     </div>
   );
 }

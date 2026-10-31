@@ -1,12 +1,9 @@
 // Central content config — edit projects, experience, services and contact details here.
 // To use a real image for a project, set `cover` (and optional `gallery`) to an image URL.
 
-export type Category =
-  | "Brand Identity"
-  | "Packaging Design"
-  | "Product Advertising"
-  | "Corporate Branding"
-  | "Motion & Visual Design";
+import type { Category, CaseSection, Project, Tone } from "@/lib/cms/schema";
+
+export type { CaseSection, Category, Project, Tone } from "@/lib/cms/schema";
 
 export const categories: ("All Projects" | Category)[] = [
   "All Projects",
@@ -16,25 +13,6 @@ export const categories: ("All Projects" | Category)[] = [
   "Corporate Branding",
   "Motion & Visual Design",
 ];
-
-export type Tone = "tea" | "ghee" | "black" | "lentil" | "steel" | "gold" | "ink" | "motion";
-
-export type CaseSection = { title: string; body: string; visual?: string };
-
-export type Project = {
-  slug: string;
-  title: string;
-  category: Category;
-  type: string;
-  description: string;
-  year?: string; // only add when verified
-  tone: Tone;
-  cover?: string;
-  placeholder: string; // label shown until a real image is set
-  behance?: string;
-  sections: CaseSection[];
-  palette?: string[]; // css color strings, identity projects only
-};
 
 export const site = {
   name: "Hasib Himel",
