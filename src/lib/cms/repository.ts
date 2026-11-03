@@ -53,12 +53,24 @@ const currentProcessOutcomes = [
 ];
 
 const currentToolkit = [
-  { name: "Adobe Illustrator", use: "Logos, packaging, marks and vector systems" },
-  { name: "Adobe Photoshop", use: "Profesonal retouching, Mockups and image work" },
-  { name: "Adobe After Effect", use: "Animations and motion graphics" },
-  { name: "Adobe Premiere Pro", use: "Video editing, assemble video clips and audio tracks" },
-  { name: "Figma", use: "Brand guidelines, layouts and presentations" },
-];
+  {
+    name: "Adobe Illustrator",
+    use: "Logos, packaging, marks and vector systems",
+    icon: "illustrator",
+  },
+  {
+    name: "Adobe Photoshop",
+    use: "Profesonal retouching, Mockups and image work",
+    icon: "photoshop",
+  },
+  { name: "Adobe After Effect", use: "Animations and motion graphics", icon: "after-effects" },
+  {
+    name: "Adobe Premiere Pro",
+    use: "Video editing, assemble video clips and audio tracks",
+    icon: "premiere-pro",
+  },
+  { name: "Figma", use: "Brand guidelines, layouts and presentations", icon: "figma" },
+] as const;
 
 const currentNavigation = [
   { href: "work", label: "Work" },
@@ -210,8 +222,13 @@ export function migrateLegacyPortfolioContent(input: unknown): ContentSnapshot {
         id: mediaId,
         source: { kind: "url", url: reference.src },
         alt: reference.alt,
+        ...(reference.caption === undefined ? {} : { caption: reference.caption }),
       });
-      return { mediaId, alt: reference.alt };
+      return {
+        mediaId,
+        alt: reference.alt,
+        ...(reference.caption === undefined ? {} : { caption: reference.caption }),
+      };
     });
 
     let coverMedia: { mediaId: string; alt: string } | undefined;
@@ -225,6 +242,17 @@ export function migrateLegacyPortfolioContent(input: unknown): ContentSnapshot {
       });
       coverMedia = { mediaId, alt };
     }
+    let heroMedia = coverMedia;
+    if (project.heroImage && project.heroImage !== project.cover) {
+      const mediaId = stableId("media", project.slug, "hero");
+      const alt = `${project.title} hero image`;
+      media.push({
+        id: mediaId,
+        source: { kind: "url", url: project.heroImage },
+        alt,
+      });
+      heroMedia = { mediaId, alt };
+    }
 
     return {
       id: projectId,
@@ -236,18 +264,38 @@ export function migrateLegacyPortfolioContent(input: unknown): ContentSnapshot {
       type: project.type,
       description: project.description,
       ...(project.year === undefined ? {} : { year: project.year }),
+      ...(project.client === undefined ? {} : { client: project.client }),
+      ...(project.role === undefined ? {} : { role: project.role }),
+      ...(project.services === undefined ? {} : { services: [...project.services] }),
+      ...(project.heroTitle === undefined ? {} : { heroTitle: project.heroTitle }),
+      ...(project.seoTitle === undefined ? {} : { seoTitle: project.seoTitle }),
+      ...(project.seoDescription === undefined ? {} : { seoDescription: project.seoDescription }),
+      ...(project.ctaHeading === undefined ? {} : { ctaHeading: project.ctaHeading }),
+      ...(project.ctaBody === undefined ? {} : { ctaBody: project.ctaBody }),
+      ...(project.ctaLabel === undefined ? {} : { ctaLabel: project.ctaLabel }),
+      ...(project.ctaHref === undefined ? {} : { ctaHref: project.ctaHref }),
+      ...(project.showClient === undefined ? {} : { showClient: project.showClient }),
+      ...(project.showYear === undefined ? {} : { showYear: project.showYear }),
+      ...(project.showRole === undefined ? {} : { showRole: project.showRole }),
+      ...(project.showServices === undefined ? {} : { showServices: project.showServices }),
       tone: project.tone,
       ...(project.cover === undefined ? {} : { cover: project.cover }),
       ...(coverMedia === undefined ? {} : { coverMedia }),
+      ...(heroMedia === undefined ? {} : { heroMedia }),
       gallery: projectMedia,
+      ...(project.galleryLayout === undefined ? {} : { galleryLayout: project.galleryLayout }),
       placeholder: project.placeholder,
       ...(project.behance === undefined ? {} : { behance: project.behance }),
       sections: project.sections.map((section, sectionOrder) => ({
-        id: stableId("case-section", project.slug, section.title),
+        ...(section.id === undefined
+          ? { id: stableId("case-section", project.slug, section.title) }
+          : { id: section.id }),
         order: sectionOrder,
         title: section.title,
         body: section.body,
         ...(section.visual === undefined ? {} : { visual: section.visual }),
+        ...(section.visible === undefined ? {} : { visible: section.visible }),
+        ...(section.galleryLayout === undefined ? {} : { galleryLayout: section.galleryLayout }),
         media: [],
       })),
       ...(project.palette === undefined ? {} : { palette: [...project.palette] }),
@@ -307,6 +355,11 @@ export function migrateLegacyPortfolioContent(input: unknown): ContentSnapshot {
         eyebrow: currentHomeSections.hero.eyebrow,
         title: currentHomeSections.hero.title,
         body: currentHomeSections.hero.body,
+        projectsShippedCount: String(legacy.projects.length),
+        projectsShippedText: "projects shipped",
+        trustedByIntro: "Trusted by teams at",
+        trustedByClients: legacy.experience.map(({ company }) => company).join(", "),
+        serviceCategories: "Brand identities · Packaging · Product advertising",
         primaryCta: {
           label: "Explore My Work",
           target: { kind: "section", sectionId: stableId("section", "home", "work") },

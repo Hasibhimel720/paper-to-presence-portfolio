@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { colorSchemeBootstrap } from "../lib/color-scheme";
 
 function NotFoundComponent() {
   return (
@@ -78,12 +79,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "color-scheme", content: "dark light" },
       { title: "Hasib Himel — Brand Identity & Product Designer" },
-      { name: "description", content: "Brand identity, packaging and product design by Hasib Himel." },
+      {
+        name: "description",
+        content: "Brand identity, packaging and product design by Hasib Himel.",
+      },
       { name: "author", content: "Hasib Himel" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "theme-color", content: "#060a18" },
+      { name: "theme-color", content: "#10131d" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -107,8 +112,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: colorSchemeBootstrap }} />
         <HeadContent />
       </head>
       <body>

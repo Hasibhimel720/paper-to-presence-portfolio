@@ -62,10 +62,14 @@ function PublishedPage() {
   const { page, snapshot, mediaUrls } = Route.useLoaderData();
   return (
     <div
-      className={snapshot.origin === "cms" ? "overflow-x-clip portfolio-public" : "overflow-x-clip"}
+      className={
+        snapshot.origin === "cms"
+          ? "overflow-x-clip portfolio-public portfolio-theme"
+          : "overflow-x-clip portfolio-theme"
+      }
       style={getPublicThemeStyle(snapshot)}
     >
-      <SiteNav snapshot={snapshot} />
+      <SiteNav snapshot={snapshot} mediaUrls={mediaUrls} />
       <main className="container-x min-h-screen pt-36 pb-24">
         {page.sections
           .filter((section) => section.visible)

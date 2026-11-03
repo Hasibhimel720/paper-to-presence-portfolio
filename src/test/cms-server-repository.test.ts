@@ -10,7 +10,7 @@ import {
   saveAdminCmsDraft,
   unpublishAdminCmsSnapshot,
 } from "@/lib/cms/server-repository.server";
-import type { ContentSnapshot } from "@/lib/cms/schema";
+import { contentSnapshotSchema, type ContentSnapshot } from "@/lib/cms/schema";
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -110,6 +110,20 @@ describe("server CMS repository authorization and draft saves", () => {
     expect(mocks.createClient).not.toHaveBeenCalled();
   });
 
+  it("rejects service references when their CMS media asset is not registered in the snapshot", async () => {
+    const snapshot = await createDemoContent();
+    snapshot.services[0]!.image = {
+      mediaId: "8c752cdb-eaa5-4cda-9850-cddc7a547403",
+      alt: "Unregistered service image",
+    };
+
+    expect(contentSnapshotSchema.safeParse(snapshot).success).toBe(false);
+    await expect(saveAdminCmsDraft(environment, "valid-token", null, snapshot)).rejects.toThrow(
+      "Invalid CMS content: Service references unknown media",
+    );
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
   it("surfaces database authorization denial instead of returning demo success", async () => {
     mocks.rpc.mockResolvedValue({
       data: null,
@@ -197,6 +211,151 @@ describe("server CMS repository authorization and draft saves", () => {
         ({ id }) => id === unusedMediaId,
       ),
     ).toBe(false);
+  });
+
+  it("persists a referenced Hero background asset when saving a draft", async () => {
+    const snapshot = await createDemoContent();
+    const heroBackground = {
+      id: "71bf1b24-7954-475c-abb2-4bc2ce502ec7",
+      source: {
+        kind: "storage" as const,
+        key: "portfolio/71bf1b24-7954-475c-abb2-4bc2ce502ec7/hero.webp",
+      },
+      mimeType: "image/webp",
+      sizeBytes: 1200,
+      alt: "Hero background",
+    };
+    const homePage = snapshot.pages.find(({ slug }) => slug === "/");
+    const hero = homePage?.sections.find((section) => section.type === "hero");
+    if (!hero || hero.type !== "hero") throw new Error("Expected the homepage Hero section.");
+    snapshot.media.push(heroBackground);
+    hero.data.backgroundImage = { mediaId: heroBackground.id, alt: heroBackground.alt };
+
+    const candidate = contentSnapshotSchema.parse(snapshot);
+    const revisionId = "cc117db4-21b9-4c7e-970a-0cc8cf40f241";
+    mocks.rpc
+      .mockResolvedValueOnce({ data: { revision_id: revisionId }, error: null })
+      .mockResolvedValueOnce({ data: adminState(candidate, revisionId, "draft"), error: null });
+
+    await expect(
+      saveAdminCmsDraft(environment, "valid-token", null, candidate),
+    ).resolves.toMatchObject({
+      publication: { draftRevisionId: revisionId },
+    });
+
+    expect(mocks.rpc).toHaveBeenNthCalledWith(
+      1,
+      "portfolio_cms_save_draft",
+      expect.objectContaining({
+        p_snapshot: expect.objectContaining({
+          media: expect.arrayContaining([heroBackground]),
+          pages: expect.arrayContaining([
+            expect.objectContaining({
+              sections: expect.arrayContaining([
+                expect.objectContaining({
+                  type: "hero",
+                  data: expect.objectContaining({
+                    backgroundImage: {
+                      mediaId: heroBackground.id,
+                      alt: heroBackground.alt,
+                    },
+                  }),
+                }),
+              ]),
+            }),
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it("retains the navigation logo media asset in the saved draft", async () => {
+    const snapshot = await createDemoContent();
+    const logo = {
+      id: "a1b2c3d4-e5f6-4789-a123-123456789abc",
+      source: {
+        kind: "storage" as const,
+        key: "portfolio/a1b2c3d4-e5f6-4789-a123-123456789abc/logo.png",
+      },
+      mimeType: "image/png",
+      sizeBytes: 1200,
+      alt: "Portfolio logo",
+    };
+    snapshot.media.push(logo);
+    snapshot.navigationLogo = { mediaId: logo.id, alt: logo.alt };
+    const candidate = contentSnapshotSchema.parse(snapshot);
+    const revisionId = "9c12d6f1-126e-4e31-bd8f-166c2a15cc41";
+    mocks.rpc
+      .mockResolvedValueOnce({ data: { revision_id: revisionId }, error: null })
+      .mockResolvedValueOnce({ data: adminState(candidate, revisionId, "draft"), error: null });
+
+    await saveAdminCmsDraft(environment, "valid-token", null, candidate);
+
+    const [, saveArguments] = mocks.rpc.mock.calls[0]!;
+    const persisted = (saveArguments as { p_snapshot: ContentSnapshot }).p_snapshot;
+    expect(persisted.navigationLogo).toEqual({ mediaId: logo.id, alt: logo.alt });
+    expect(persisted.media).toContainEqual(logo);
+  });
+
+  it("retains multiple independently referenced service images in the saved draft", async () => {
+    const snapshot = await createDemoContent();
+    const firstAsset = {
+      id: "8c752cdb-eaa5-4cda-9850-cddc7a547403",
+      source: {
+        kind: "storage" as const,
+        key: "portfolio/8c752cdb-eaa5-4cda-9850-cddc7a547403/service-one.webp",
+      },
+      mimeType: "image/webp",
+      sizeBytes: 1200,
+      alt: "First service image",
+    };
+    const secondAsset = {
+      id: "c2be045e-136b-47de-bd59-4850a3feeb09",
+      source: {
+        kind: "storage" as const,
+        key: "portfolio/c2be045e-136b-47de-bd59-4850a3feeb09/service-two.webp",
+      },
+      mimeType: "image/webp",
+      sizeBytes: 1400,
+      alt: "Second service image",
+    };
+    snapshot.media.push(firstAsset, secondAsset);
+    snapshot.services[0]!.image = { mediaId: firstAsset.id, alt: firstAsset.alt };
+    snapshot.services[1]!.image = { mediaId: secondAsset.id, alt: secondAsset.alt };
+
+    const candidate = contentSnapshotSchema.parse(snapshot);
+    const revisionId = "9c12d6f1-126e-4e31-bd8f-166c2a15cc41";
+    mocks.rpc
+      .mockResolvedValueOnce({ data: { revision_id: revisionId }, error: null })
+      .mockResolvedValueOnce({
+        data: adminState(candidate, revisionId, "draft"),
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: adminState(candidate, revisionId, "draft"),
+        error: null,
+      });
+
+    await expect(
+      saveAdminCmsDraft(environment, "valid-token", null, candidate),
+    ).resolves.toMatchObject({
+      publication: { draftRevisionId: revisionId },
+    });
+    const refreshed = await loadAdminCmsSnapshot(environment, "valid-token");
+    expect(refreshed?.services.slice(0, 2).map(({ image }) => image?.mediaId)).toEqual([
+      firstAsset.id,
+      secondAsset.id,
+    ]);
+    expect(refreshed?.media).toEqual(expect.arrayContaining([firstAsset, secondAsset]));
+
+    const [, saveArguments] = mocks.rpc.mock.calls[0]!;
+    const persisted = (saveArguments as { p_snapshot: ContentSnapshot }).p_snapshot;
+    expect(persisted.services.slice(0, 2).map(({ image }) => image?.mediaId)).toEqual([
+      firstAsset.id,
+      secondAsset.id,
+    ]);
+    expect(persisted.media).toEqual(expect.arrayContaining([firstAsset, secondAsset]));
+    expect(contentSnapshotSchema.safeParse(persisted).success).toBe(true);
   });
 
   it("lists stored media only after verifying the administrator session", async () => {
@@ -329,12 +488,63 @@ describe("server CMS repository authorization and draft saves", () => {
     const mediaId = "f9c12d6f-126e-4e31-bd8f-166c2a15cc41";
     project.coverMedia = { mediaId, alt: project.title };
     const storageKey = `portfolio/${mediaId}/${mediaId}.webp`;
+    const serviceImageId = "8c752cdb-eaa5-4cda-9850-cddc7a547403";
+    const serviceStorageKey = `portfolio/${serviceImageId}/${serviceImageId}.webp`;
+    snapshot.services[0]!.image = { mediaId: serviceImageId, alt: "Published service art" };
+    snapshot.media.push(
+      {
+        id: mediaId,
+        source: { kind: "storage", key: storageKey },
+        mimeType: "image/webp",
+        sizeBytes: 1200,
+        alt: project.title,
+      },
+      {
+        id: serviceImageId,
+        source: { kind: "storage", key: serviceStorageKey },
+        mimeType: "image/webp",
+        sizeBytes: 1400,
+        alt: "Published service art",
+      },
+    );
+    const revisionId = "9c12d6f1-126e-4e31-bd8f-166c2a15cc41";
+    const state = adminState(snapshot, revisionId, "published");
+    mocks.rpc.mockResolvedValue({
+      data: { snapshot: state.snapshot, revision: state.revisions[0] },
+      error: null,
+    });
+    mocks.createSignedUrls.mockResolvedValue({
+      data: [
+        { path: storageKey, signedUrl: "https://images.example.test/signed.webp" },
+        {
+          path: serviceStorageKey,
+          signedUrl: "https://images.example.test/service-signed.webp",
+        },
+      ],
+      error: null,
+    });
+
+    const published = await loadPublishedCmsContent(environment);
+
+    expect(published?.mediaUrls[mediaId]).toBe("https://images.example.test/signed.webp");
+    expect(published?.snapshot.services[0]?.image?.mediaId).toBe(serviceImageId);
+    expect(published?.mediaUrls[serviceImageId]).toBe(
+      "https://images.example.test/service-signed.webp",
+    );
+    expect(mocks.createSignedUrls).toHaveBeenCalledWith([storageKey, serviceStorageKey], 604800);
+  });
+
+  it("returns a published navigation logo with its signed delivery URL", async () => {
+    const snapshot = await createDemoContent();
+    const mediaId = "a1b2c3d4-e5f6-4789-a123-123456789abc";
+    const storageKey = `portfolio/${mediaId}/logo.png`;
+    snapshot.navigationLogo = { mediaId, alt: "Portfolio logo" };
     snapshot.media.push({
       id: mediaId,
       source: { kind: "storage", key: storageKey },
-      mimeType: "image/webp",
+      mimeType: "image/png",
       sizeBytes: 1200,
-      alt: project.title,
+      alt: "Portfolio logo",
     });
     const revisionId = "9c12d6f1-126e-4e31-bd8f-166c2a15cc41";
     const state = adminState(snapshot, revisionId, "published");
@@ -343,13 +553,15 @@ describe("server CMS repository authorization and draft saves", () => {
       error: null,
     });
     mocks.createSignedUrls.mockResolvedValue({
-      data: [{ path: storageKey, signedUrl: "https://images.example.test/signed.webp" }],
+      data: [{ path: storageKey, signedUrl: "https://images.example.test/logo-signed.png" }],
       error: null,
     });
 
     const published = await loadPublishedCmsContent(environment);
 
-    expect(published?.mediaUrls[mediaId]).toBe("https://images.example.test/signed.webp");
+    expect(published?.snapshot.navigationLogo).toEqual({ mediaId, alt: "Portfolio logo" });
+    expect(published?.snapshot.media.some((asset) => asset.id === mediaId)).toBe(true);
+    expect(published?.mediaUrls[mediaId]).toBe("https://images.example.test/logo-signed.png");
     expect(mocks.createSignedUrls).toHaveBeenCalledWith([storageKey], 604800);
   });
 });

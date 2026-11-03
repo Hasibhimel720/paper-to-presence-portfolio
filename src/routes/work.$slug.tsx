@@ -1,5 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
+import { useState } from "react";
 import { SiteNav, SiteFooter } from "@/components/site/Chrome";
 import { ProjectVisual } from "@/components/site/ProjectVisual";
 import { Reveal } from "@/components/site/Reveal";
@@ -20,8 +21,10 @@ export const Route = createFileRoute("/work/$slug")({
   },
   head: ({ loaderData }) => {
     const p = loaderData?.project;
-    const title = p ? `${p.title} — ${p.type} | Hasib Himel` : "Project unavailable | Hasib Himel";
-    const desc = p?.description ?? "Project case study by Hasib Himel.";
+    const title = p
+      ? p.seoTitle || `${p.title} — ${p.type} | Hasib Himel`
+      : "Project unavailable | Hasib Himel";
+    const desc = p?.seoDescription || p?.description || "Project case study by Hasib Himel.";
     const image = p?.cover;
     const seo = loaderData?.snapshot.seo;
     return {
@@ -58,6 +61,86 @@ function CaseStudy() {
   );
 }
 
+type CaseStudyImage = { id: string; src: string; alt: string; caption?: string };
+type ImageLayout = NonNullable<Project["galleryLayout"]>;
+
+function ProjectImageGallery({
+  images,
+  layout = "masonry",
+  label,
+}: {
+  images: CaseStudyImage[];
+  layout?: ImageLayout;
+  label: string;
+}) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  if (images.length === 0) return null;
+  const selectedImages =
+    layout === "single"
+      ? images.slice(0, 1)
+      : layout === "carousel"
+        ? [images[activeIndex]!]
+        : images;
+  const layoutClass =
+    layout === "masonry"
+      ? "columns-1 sm:columns-2"
+      : layout === "two-column"
+        ? "grid grid-cols-1 sm:grid-cols-2"
+        : layout === "three-column"
+          ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+          : "grid grid-cols-1";
+
+  return (
+    <div className="space-y-4">
+      {layout === "carousel" && images.length > 1 && (
+        <div className="flex items-center justify-between gap-3">
+          <p className="eyebrow" aria-live="polite">
+            Image {activeIndex + 1} of {images.length}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              aria-label={`Previous ${label} image`}
+              onClick={() => setActiveIndex((index) => (index - 1 + images.length) % images.length)}
+              className="glass-button rounded-full border border-border p-2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label={`Next ${label} image`}
+              onClick={() => setActiveIndex((index) => (index + 1) % images.length)}
+              className="glass-button rounded-full border border-border p-2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+      <div className={`${layoutClass} gap-4`}>
+        {selectedImages.map((image, index) => (
+          <figure
+            key={image.id}
+            className={`mb-4 overflow-hidden rounded-xl border border-border bg-surface ${layout === "masonry" ? "break-inside-avoid" : ""}`}
+          >
+            <img
+              src={image.src}
+              alt={image.alt}
+              loading={index === 0 && label === "Project hero" ? "eager" : "lazy"}
+              className="block h-auto w-full"
+            />
+            {image.caption && (
+              <figcaption className="px-4 py-3 text-xs text-muted-foreground">
+                {image.caption}
+              </figcaption>
+            )}
+          </figure>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function CaseStudyPage({
   project: p,
   prev,
@@ -72,16 +155,45 @@ export function CaseStudyPage({
   mediaUrls?: Record<string, string> | undefined;
 }) {
   const cmsProject = snapshot?.projects.find((project) => project.slug === p.slug);
-  const cmsSections = new Map(cmsProject?.sections.map((section) => [section.title, section]));
+  const cmsSections = new Map(cmsProject?.sections.map((section) => [section.id, section]) ?? []);
   const mediaAssets = new Map(snapshot?.media.map((asset) => [asset.id, asset]) ?? []);
+  const resolveMedia = (reference: {
+    mediaId: string;
+    alt: string;
+    caption?: string | undefined;
+  }) => {
+    const asset = mediaAssets.get(reference.mediaId);
+    const src =
+      mediaUrls[reference.mediaId] ?? (asset?.source.kind === "url" ? asset.source.url : "");
+    return src
+      ? [
+          {
+            id: reference.mediaId,
+            src,
+            alt: reference.alt,
+            ...(reference.caption ? { caption: reference.caption } : {}),
+          },
+        ]
+      : [];
+  };
+  const projectGallery = (p.gallery ?? []).map(({ id, src, alt, caption }) => ({
+    id,
+    src,
+    alt,
+    ...(caption ? { caption } : {}),
+  }));
+  const heroImage = p.heroImage ?? p.cover;
+  const orderedSections = p.sections.filter((section) => section.visible !== false);
   return (
     <div
       className={
-        snapshot?.origin === "cms" ? "overflow-x-clip portfolio-public" : "overflow-x-clip"
+        snapshot?.origin === "cms"
+          ? "overflow-x-clip portfolio-public portfolio-theme"
+          : "overflow-x-clip portfolio-theme"
       }
       style={getPublicThemeStyle(snapshot)}
     >
-      <SiteNav snapshot={snapshot} />
+      <SiteNav snapshot={snapshot} mediaUrls={mediaUrls} />
       <main className="pt-28 md:pt-36">
         <section className="container-x">
           <Link
@@ -91,91 +203,113 @@ export function CaseStudyPage({
           >
             <ArrowLeft className="h-3.5 w-3.5" /> All work
           </Link>
-          <div className="mt-10 grid gap-8 md:grid-cols-12 md:items-end">
-            <h1 className="display-xl md:col-span-8 !text-[clamp(2.75rem,8vw,7.5rem)]">
-              {p.title}
-            </h1>
-            <dl className="md:col-span-4 grid grid-cols-2 gap-6 text-sm">
+          <div className="mt-10 grid gap-10 md:grid-cols-12 md:items-end">
+            <div className="md:col-span-8">
+              <p className="eyebrow text-primary">{p.category}</p>
+              <h1 className="display-xl mt-4 !text-[clamp(2.75rem,8vw,7.5rem)]">
+                {p.heroTitle || p.title}
+              </h1>
+              <p className="mt-7 max-w-2xl text-lg leading-relaxed text-muted-foreground md:text-xl">
+                {p.description}
+              </p>
+            </div>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-5 border-t border-border pt-5 text-sm md:col-span-4 md:border-t-0 md:pt-0">
               <div>
                 <dt className="eyebrow">Discipline</dt>
                 <dd className="mt-2">{p.type}</dd>
               </div>
-              <div>
-                <dt className="eyebrow">Category</dt>
-                <dd className="mt-2">{p.category}</dd>
-              </div>
-              <div>
-                <dt className="eyebrow">Client</dt>
-                <dd className="mt-2 text-muted-foreground">[If approved]</dd>
-              </div>
-              <div>
-                <dt className="eyebrow">Year</dt>
-                <dd className="mt-2 text-muted-foreground">{p.year ?? "[Verify]"}</dd>
-              </div>
+              {p.client && p.showClient !== false && (
+                <div>
+                  <dt className="eyebrow">Client</dt>
+                  <dd className="mt-2 text-muted-foreground">{p.client}</dd>
+                </div>
+              )}
+              {p.year && p.showYear !== false && (
+                <div>
+                  <dt className="eyebrow">Year</dt>
+                  <dd className="mt-2 text-muted-foreground">{p.year}</dd>
+                </div>
+              )}
+              {p.role && p.showRole !== false && (
+                <div>
+                  <dt className="eyebrow">Role</dt>
+                  <dd className="mt-2 text-muted-foreground">{p.role}</dd>
+                </div>
+              )}
+              {p.services?.length && p.showServices !== false && (
+                <div className="col-span-2">
+                  <dt className="eyebrow">Services</dt>
+                  <dd className="mt-2 text-muted-foreground">{p.services.join(" · ")}</dd>
+                </div>
+              )}
             </dl>
           </div>
-          <p className="mt-10 max-w-2xl text-xl text-muted-foreground">{p.description}</p>
         </section>
 
-        <Reveal className="container-x mt-14">
-          <ProjectVisual project={p} className="aspect-[4/3] md:aspect-[16/8]" />
-        </Reveal>
+        {heroImage && (
+          <Reveal className="container-x mt-14">
+            <ProjectImageGallery
+              images={[
+                {
+                  id: `${p.slug}-hero`,
+                  src: heroImage,
+                  alt:
+                    cmsProject?.heroMedia?.alt ??
+                    cmsProject?.coverMedia?.alt ??
+                    `${p.title} hero image`,
+                },
+              ]}
+              layout="full-width"
+              label="Project hero"
+            />
+          </Reveal>
+        )}
 
-        {p.gallery && p.gallery.length > 0 && (
-          <section
-            aria-label={`${p.title} project gallery`}
-            className="container-x mt-10 grid gap-4 sm:grid-cols-2"
-          >
-            {p.gallery.map((image) => (
-              <figure key={image.id} className="overflow-hidden rounded-xl border border-border">
-                <img
-                  src={image.src}
-                  alt={image.alt}
-                  loading="lazy"
-                  className="h-full w-full object-cover"
-                />
-              </figure>
-            ))}
+        {projectGallery.length > 0 && (
+          <section aria-label={`${p.title} project gallery`} className="container-x mt-12">
+            <ProjectImageGallery
+              images={projectGallery}
+              layout={p.galleryLayout ?? "masonry"}
+              label={`${p.title} project`}
+            />
           </section>
         )}
 
         <div className="container-x mt-24 md:mt-36 space-y-24 md:space-y-36">
-          {p.sections.map((s, i) => (
-            <Reveal key={s.title}>
-              <section className="grid gap-8 md:grid-cols-12">
-                <div className="md:col-span-4">
-                  <p className="eyebrow">
-                    <span className="text-primary">0{i + 1}</span> — {s.title}
-                  </p>
-                </div>
-                <div className="md:col-span-8">
-                  <p className="text-xl md:text-2xl leading-snug text-muted-foreground">{s.body}</p>
-                  {s.visual && (
-                    <ProjectVisual
-                      project={p}
-                      label={s.visual}
-                      className="mt-10 aspect-[4/3] md:aspect-[16/10]"
-                    />
-                  )}
-                  {cmsSections.get(s.title)?.media.map((reference) => {
-                    const asset = mediaAssets.get(reference.mediaId);
-                    const src =
-                      mediaUrls[reference.mediaId] ??
-                      (asset?.source.kind === "url" ? asset.source.url : undefined);
-                    return src ? (
-                      <img
-                        key={reference.mediaId}
-                        src={src}
-                        alt={reference.alt}
-                        loading="lazy"
-                        className="mt-10 max-h-[75vh] w-full rounded-xl border border-border object-cover"
-                      />
-                    ) : null;
-                  })}
-                </div>
-              </section>
-            </Reveal>
-          ))}
+          {orderedSections.map((s, i) => {
+            const cmsSection = cmsSections.get(s.id ?? "");
+            const sectionImages = cmsSection?.media.flatMap(resolveMedia) ?? [];
+            return (
+              <Reveal key={s.id ?? `${s.title}-${i}`}>
+                <section className="grid gap-8 md:grid-cols-12">
+                  <div className="md:col-span-4">
+                    <p className="eyebrow">
+                      <span className="text-primary">0{i + 1}</span> — {s.title}
+                    </p>
+                  </div>
+                  <div className="md:col-span-8">
+                    {s.body && (
+                      <p className="text-xl leading-snug text-muted-foreground md:text-2xl">
+                        {s.body}
+                      </p>
+                    )}
+                    {s.visual && (
+                      <ProjectVisual project={p} label={s.visual} className="mt-10 aspect-[4/3]" />
+                    )}
+                    {sectionImages.length > 0 && (
+                      <div className="mt-10">
+                        <ProjectImageGallery
+                          images={sectionImages}
+                          layout={s.galleryLayout ?? "stacked"}
+                          label={`${s.title} section`}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </Reveal>
+            );
+          })}
 
           {p.palette && p.palette.length > 0 && (
             <Reveal>
@@ -199,15 +333,14 @@ export function CaseStudyPage({
         </div>
 
         <section className="container-x mt-32 border-t border-border py-20 text-center">
-          <p className="eyebrow">Have a similar project?</p>
-          <h2 className="display-lg mt-6">Let's talk about your brand.</h2>
-          <Link
-            to="/"
-            hash="contact"
-            className="mt-10 inline-flex items-center gap-3 bg-foreground px-7 py-4 text-sm font-medium text-background hover:bg-primary hover:text-primary-foreground"
+          <p className="eyebrow">{p.ctaBody || "Have a similar project?"}</p>
+          <h2 className="display-lg mt-6">{p.ctaHeading || "Let's talk about your brand."}</h2>
+          <a
+            href={p.ctaHref || "/#contact"}
+            className="mt-10 inline-flex items-center gap-3 bg-foreground px-7 py-4 text-sm font-medium text-background transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 focus-visible:ring-offset-background"
           >
-            Discuss a project <ArrowUpRight className="h-4 w-4" />
-          </Link>
+            {p.ctaLabel || "Discuss a project"} <ArrowUpRight className="h-4 w-4" />
+          </a>
         </section>
 
         <nav aria-label="Project navigation" className="grid border-t border-border md:grid-cols-2">

@@ -7,9 +7,9 @@ import {
   faqRecordSchema,
   processStepSchema,
   serviceRecordSchema,
-  type Category,
   type ContentSnapshot,
 } from "@/lib/cms/schema";
+import { experienceDateRangeLabel } from "@/lib/cms/experience-dates";
 import {
   deleteCmsMedia,
   updateCmsMediaMetadata,
@@ -64,7 +64,6 @@ const collectionDetails: Record<
       { key: "role", label: "Role" },
       { key: "type", label: "Work type" },
       { key: "location", label: "Location" },
-      { key: "dates", label: "Dates" },
       { key: "body", label: "Description", multiline: true },
     ],
   },
@@ -108,6 +107,13 @@ function fieldsFromRecord(kind: CollectionKind, record: object): RecordFields {
     const fieldValue = value[key];
     fields[key] = Array.isArray(fieldValue) ? fieldValue.join("\n") : String(fieldValue ?? "");
   }
+  if (kind === "experience") {
+    const experience = record as ExperienceRecord;
+    fields["legacyDates"] = experience.dates;
+    fields["startDate"] = experience.startDate ?? "";
+    fields["endDate"] = experience.endDate ?? "";
+    fields["isCurrent"] = String(experience.isCurrent ?? false);
+  }
   return fields;
 }
 
@@ -117,7 +123,13 @@ function newDraft(kind: CollectionKind, snapshot: ContentSnapshot): CollectionDr
   const fields: RecordFields = {};
   for (const { key } of collectionDetails[kind].fields) fields[key] = "";
   if (kind === "services") fields["n"] = String(order + 1);
-  if (kind === "experience") fields["type"] = "Full-time";
+  if (kind === "experience") {
+    fields["type"] = "Full-time";
+    fields["legacyDates"] = "";
+    fields["startDate"] = "";
+    fields["endDate"] = "";
+    fields["isCurrent"] = "false";
+  }
   if (kind === "process") fields["n"] = String(order + 1);
   return { id, order, visible: true, fields };
 }
@@ -144,8 +156,27 @@ function parseDraft(kind: CollectionKind, draft: CollectionDraft) {
           .map((item) => item.trim())
           .filter(Boolean),
       });
-    case "experience":
-      return experienceRecordSchema.safeParse({ ...draft, ...fields });
+    case "experience": {
+      const startDate = fields["startDate"] || undefined;
+      const isCurrent = fields["isCurrent"] === "true";
+      const endDate = isCurrent ? undefined : fields["endDate"] || undefined;
+      return experienceRecordSchema.safeParse({
+        id: draft.id,
+        order: draft.order,
+        visible: draft.visible,
+        company: fields["company"] ?? "",
+        role: fields["role"] ?? "",
+        type: fields["type"] ?? "",
+        location: fields["location"] ?? "",
+        body: fields["body"] ?? "",
+        dates: startDate
+          ? experienceDateRangeLabel(startDate, endDate ?? "", isCurrent)
+          : (fields["legacyDates"] ?? ""),
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+        ...(isCurrent ? { isCurrent: true } : {}),
+      });
+    }
     case "process":
       return processStepSchema.safeParse({
         ...draft,
@@ -196,53 +227,41 @@ function updateCollection(
   }
 }
 
-function moveRelationshipReferences(
-  pages: ContentSnapshot["pages"],
+function syncCollectionReferences(
+  snapshot: ContentSnapshot,
   kind: CollectionKind,
-  id: string,
+  records: CollectionRecord[],
 ) {
-  const relationshipType = {
-    services: "services",
-    experience: "experience",
-    process: "process",
-    faqs: "faqs",
-  }[kind];
-  return pages.map((page) => ({
-    ...page,
-    sections: page.sections.map((section) => {
-      if (section.type !== relationshipType) return section;
-      if (section.type === "services")
-        return {
-          ...section,
-          data: {
-            ...section.data,
-            serviceIds: section.data.serviceIds.filter((item) => item !== id),
-          },
-        };
-      if (section.type === "experience")
-        return {
-          ...section,
-          data: {
-            ...section.data,
-            experienceIds: section.data.experienceIds.filter((item) => item !== id),
-          },
-        };
-      if (section.type === "process")
-        return {
-          ...section,
-          data: {
-            ...section.data,
-            processStepIds: section.data.processStepIds.filter((item) => item !== id),
-          },
-        };
-      if (section.type === "faqs")
-        return {
-          ...section,
-          data: { ...section.data, faqIds: section.data.faqIds.filter((item) => item !== id) },
-        };
-      return section;
-    }),
-  }));
+  const ids = [...records].sort((a, b) => a.order - b.order).map(({ id }) => id);
+  return {
+    ...snapshot,
+    pages: snapshot.pages.map((page) => ({
+      ...page,
+      sections: page.sections.map((section) => {
+        if (kind === "services" && section.type === "services")
+          return {
+            ...section,
+            data: { ...section.data, serviceIds: ids },
+          };
+        if (kind === "experience" && section.type === "experience")
+          return {
+            ...section,
+            data: { ...section.data, experienceIds: ids },
+          };
+        if (kind === "process" && section.type === "process")
+          return {
+            ...section,
+            data: { ...section.data, processStepIds: ids },
+          };
+        if (kind === "faqs" && section.type === "faqs")
+          return {
+            ...section,
+            data: { ...section.data, faqIds: ids },
+          };
+        return section;
+      }),
+    })),
+  };
 }
 
 export function CollectionWorkspace({ kind, snapshot, onChange }: CollectionWorkspaceProps) {
@@ -274,6 +293,11 @@ export function CollectionWorkspace({ kind, snapshot, onChange }: CollectionWork
 
   function save() {
     if (!draft) return;
+    if (kind === "experience" && !editing && !draft.fields["startDate"]) {
+      setError("Choose a Start Date before adding an experience entry.");
+      setSuccess("");
+      return;
+    }
     const parsed = parseDraft(kind, draft);
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Check the required fields.");
@@ -283,12 +307,12 @@ export function CollectionWorkspace({ kind, snapshot, onChange }: CollectionWork
     const updated = editing
       ? records.map((record) => (record.id === draft.id ? parsed.data : record))
       : [...records, { ...parsed.data, order: records.length }];
-    if (
-      commit(
-        updateCollection(snapshot, kind, updated),
-        `${details.title} changes applied to the dashboard session.`,
-      )
-    ) {
+    const candidate = syncCollectionReferences(
+      updateCollection(snapshot, kind, updated),
+      kind,
+      updated,
+    );
+    if (commit(candidate, `${details.title} changes applied to the dashboard session.`)) {
       setDraft(null);
       setEditing(false);
     }
@@ -299,8 +323,11 @@ export function CollectionWorkspace({ kind, snapshot, onChange }: CollectionWork
     const nextRecords = records
       .filter(({ id }) => id !== record.id)
       .map((item, order) => ({ ...item, order }));
-    const candidate = updateCollection(snapshot, kind, nextRecords);
-    candidate.pages = moveRelationshipReferences(candidate.pages, kind, record.id);
+    const candidate = syncCollectionReferences(
+      updateCollection(snapshot, kind, nextRecords),
+      kind,
+      nextRecords,
+    );
     if (commit(candidate, `${details.title.slice(0, -1)} removed from the dashboard session.`)) {
       if (draft?.id === record.id) setDraft(null);
     }
@@ -313,8 +340,12 @@ export function CollectionWorkspace({ kind, snapshot, onChange }: CollectionWork
     const next = [...records];
     [next[index], next[target]] = [next[target]!, next[index]!];
     commit(
-      updateCollection(
-        snapshot,
+      syncCollectionReferences(
+        updateCollection(
+          snapshot,
+          kind,
+          next.map((record, order) => ({ ...record, order })),
+        ),
         kind,
         next.map((record, order) => ({ ...record, order })),
       ),
@@ -328,12 +359,45 @@ export function CollectionWorkspace({ kind, snapshot, onChange }: CollectionWork
     );
     const record = next.find(({ id }) => id === recordId);
     commit(
-      updateCollection(snapshot, kind, next),
+      syncCollectionReferences(updateCollection(snapshot, kind, next), kind, next),
       record?.visible
         ? "Entry shown in the dashboard session."
         : "Entry hidden in the dashboard session.",
     );
   }
+
+  function updateSectionCopy(field: "eyebrow" | "title" | "intro", value: string) {
+    if (kind === "services") return;
+    const pages = snapshot.pages.map((page) => {
+      if (page.slug !== "/") return page;
+      return {
+        ...page,
+        sections: page.sections.map((section) => {
+          if (kind === "experience" && section.type === "experience") {
+            return { ...section, data: { ...section.data, [field]: value } };
+          }
+          if (kind === "process" && section.type === "process") {
+            return { ...section, data: { ...section.data, [field]: value } };
+          }
+          if (kind === "faqs" && section.type === "faqs") {
+            return { ...section, data: { ...section.data, [field]: value } };
+          }
+          return section;
+        }),
+      };
+    });
+    commit({ ...snapshot, pages }, `${details.title} section text updated.`);
+  }
+
+  const homepageSections = snapshot.pages.find(({ slug }) => slug === "/")?.sections ?? [];
+  const homepageSection =
+    kind === "experience"
+      ? homepageSections.find((section) => section.type === "experience")
+      : kind === "process"
+        ? homepageSections.find((section) => section.type === "process")
+        : kind === "faqs"
+          ? homepageSections.find((section) => section.type === "faqs")
+          : undefined;
 
   const filtered = records.filter((record) =>
     `${recordTitle(kind, record)} ${fieldsFromRecord(kind, record)["body"] ?? ""}`
@@ -403,6 +467,50 @@ export function CollectionWorkspace({ kind, snapshot, onChange }: CollectionWork
         </p>
       )}
 
+      {kind !== "services" && homepageSection && (
+        <section
+          aria-label={`${details.title} section heading`}
+          className="rounded-2xl border border-border bg-card p-5 sm:p-6"
+        >
+          <h2 className="font-semibold">Homepage section copy</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            These fields update the public section heading and introduction.
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Section eyebrow</span>
+              <input
+                aria-label={`${details.title} section eyebrow`}
+                value={homepageSection.data.eyebrow}
+                onChange={(event) => updateSectionCopy("eyebrow", event.target.value)}
+                className={inputClass}
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Section heading</span>
+              <input
+                aria-label={`${details.title} section heading`}
+                value={homepageSection.data.title}
+                onChange={(event) => updateSectionCopy("title", event.target.value)}
+                className={inputClass}
+              />
+            </label>
+            <label className="block space-y-1.5 sm:col-span-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                Section introduction
+              </span>
+              <textarea
+                aria-label={`${details.title} section introduction`}
+                rows={3}
+                value={homepageSection.data.intro}
+                onChange={(event) => updateSectionCopy("intro", event.target.value)}
+                className={`${inputClass} resize-y`}
+              />
+            </label>
+          </div>
+        </section>
+      )}
+
       {draft && (
         <section
           aria-label={`Edit ${details.title}`}
@@ -438,6 +546,66 @@ export function CollectionWorkspace({ kind, snapshot, onChange }: CollectionWork
                 ) : null}
               </label>
             ))}
+            {kind === "experience" && (
+              <>
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">Start Date</span>
+                  <input
+                    aria-label="Start Date"
+                    type="date"
+                    value={draft.fields["startDate"] ?? ""}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        fields: { ...draft.fields, startDate: event.target.value },
+                      })
+                    }
+                    className={inputClass}
+                  />
+                </label>
+                {!editing || draft.fields["isCurrent"] !== "true" ? (
+                  <label className="block space-y-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">End Date</span>
+                    <input
+                      aria-label="End Date"
+                      type="date"
+                      min={draft.fields["startDate"] || undefined}
+                      value={draft.fields["endDate"] ?? ""}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          fields: { ...draft.fields, endDate: event.target.value },
+                        })
+                      }
+                      className={inputClass}
+                    />
+                  </label>
+                ) : null}
+                <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                  <input
+                    aria-label="I currently work here"
+                    type="checkbox"
+                    checked={draft.fields["isCurrent"] === "true"}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        fields: {
+                          ...draft.fields,
+                          isCurrent: String(event.target.checked),
+                          ...(event.target.checked ? { endDate: "" } : {}),
+                        },
+                      })
+                    }
+                  />
+                  I currently work here
+                </label>
+                {!draft.fields["startDate"] && draft.fields["legacyDates"] && (
+                  <p className="text-xs text-muted-foreground sm:col-span-2">
+                    Existing date range is preserved as written: {draft.fields["legacyDates"]}
+                  </p>
+                )}
+              </>
+            )}
           </div>
           <div className="mt-5 flex flex-wrap justify-end gap-2">
             <button
@@ -497,7 +665,7 @@ export function CollectionWorkspace({ kind, snapshot, onChange }: CollectionWork
                       {fields["body"] ||
                         fields["a"] ||
                         fields["outcomes"] ||
-                        fields["dates"] ||
+                        fields["legacyDates"] ||
                         "No description provided."}
                     </p>
                   </div>
@@ -573,16 +741,30 @@ type CategoriesWorkspaceProps = {
 };
 
 export function CategoriesWorkspace({ snapshot, onChange }: CategoriesWorkspaceProps) {
-  const [newCategory, setNewCategory] = useState<Category | "">("");
+  const [newCategory, setNewCategory] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState<Category | "">("");
+  const [editingName, setEditingName] = useState("");
   const [replacementById, setReplacementById] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const available = categorySchema.options.filter(
-    (name) => !snapshot.categories.some((category) => category.name === name),
-  );
   const inputClass = "rounded-lg border border-input bg-background px-3 py-2.5 text-sm";
+
+  function makeSlug(name: string, exceptId?: string) {
+    const base =
+      name
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") || `category-${crypto.randomUUID().slice(0, 8)}`;
+    const used = new Set(
+      snapshot.categories.filter(({ id }) => id !== exceptId).map(({ slug }) => slug.toLowerCase()),
+    );
+    if (!used.has(base)) return base;
+    let suffix = 2;
+    while (used.has(`${base}-${suffix}`)) suffix += 1;
+    return `${base}-${suffix}`;
+  }
 
   function commit(candidate: ContentSnapshot, message: string) {
     const result = contentSnapshotSchema.safeParse(candidate);
@@ -600,24 +782,45 @@ export function CategoriesWorkspace({ snapshot, onChange }: CategoriesWorkspaceP
   function addCategory() {
     const name = categorySchema.safeParse(newCategory);
     if (!name.success) {
-      setError("Choose an unused supported category.");
+      setError(name.error.issues[0]?.message ?? "Enter a category name.");
       return;
     }
-    const slug = name.data
-      .toLowerCase()
-      .replaceAll(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
+    if (
+      snapshot.categories.some(
+        (category) => category.name.toLocaleLowerCase() === name.data.toLocaleLowerCase(),
+      )
+    ) {
+      setError("That category name is already in use.");
+      setSuccess("");
+      return;
+    }
+    const categoryId = `category:${crypto.randomUUID()}`;
+    const category = {
+      id: categoryId,
+      slug: makeSlug(name.data),
+      name: name.data,
+      order: snapshot.categories.length,
+    };
+    const pages = snapshot.pages.map((page) => ({
+      ...page,
+      sections: page.sections.map((section) =>
+        section.type === "project-grid"
+          ? {
+              ...section,
+              data: {
+                ...section.data,
+                categoryIds: section.data.categoryIds.length
+                  ? [...new Set([...section.data.categoryIds, categoryId])]
+                  : [],
+              },
+            }
+          : section,
+      ),
+    }));
     const candidate = {
       ...snapshot,
-      categories: [
-        ...snapshot.categories,
-        {
-          id: `category:${crypto.randomUUID()}`,
-          slug,
-          name: name.data,
-          order: snapshot.categories.length,
-        },
-      ],
+      categories: [...snapshot.categories, category],
+      pages,
     };
     if (commit(candidate, "Category added to the dashboard session.")) setNewCategory("");
   }
@@ -691,16 +894,15 @@ export function CategoriesWorkspace({ snapshot, onChange }: CategoriesWorkspaceP
     }
     if (
       snapshot.categories.some(
-        (category) => category.id !== id && category.name === parsedName.data,
+        (category) =>
+          category.id !== id &&
+          category.name.toLocaleLowerCase() === parsedName.data.toLocaleLowerCase(),
       )
     ) {
       setError("That category name is already in use.");
       return;
     }
-    const slug = parsedName.data
-      .toLowerCase()
-      .replaceAll(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
+    const slug = makeSlug(parsedName.data, id);
     const categories = snapshot.categories.map((category) =>
       category.id === id ? { ...category, name: parsedName.data, slug } : category,
     );
@@ -756,27 +958,28 @@ export function CategoriesWorkspace({ snapshot, onChange }: CategoriesWorkspaceP
         </p>
       )}
       <section className="rounded-2xl border border-border bg-card p-4 sm:p-6">
-        <h2 className="font-semibold">Add supported category</h2>
+        <h2 className="font-semibold">Add category</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          The CMS contract currently permits a fixed set of category names.
+          Add a category name for project organization and public work filters.
         </p>
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-          <select
+          <input
             aria-label="New category"
+            maxLength={64}
             value={newCategory}
-            onChange={(event) => setNewCategory(event.target.value as Category | "")}
+            onChange={(event) => setNewCategory(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addCategory();
+              }
+            }}
             className={`${inputClass} flex-1`}
-          >
-            <option value="">Choose category</option>
-            {available.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
+            placeholder="e.g. Art Direction"
+          />
           <button
             type="button"
-            disabled={!newCategory}
+            disabled={!newCategory.trim()}
             onClick={addCategory}
             className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
@@ -784,11 +987,6 @@ export function CategoriesWorkspace({ snapshot, onChange }: CategoriesWorkspaceP
             Add category
           </button>
         </div>
-        {available.length === 0 && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            All schema-supported categories are already present.
-          </p>
-        )}
       </section>
       {snapshot.categories.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
@@ -853,24 +1051,13 @@ export function CategoriesWorkspace({ snapshot, onChange }: CategoriesWorkspaceP
                     </div>
                     {editingId === category.id && (
                       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                        <select
+                        <input
                           aria-label={`Edit ${category.name}`}
+                          maxLength={64}
                           value={editingName}
-                          onChange={(event) => setEditingName(event.target.value as Category | "")}
+                          onChange={(event) => setEditingName(event.target.value)}
                           className={`${inputClass} flex-1`}
-                        >
-                          {categorySchema.options.map((name) => (
-                            <option
-                              key={name}
-                              value={name}
-                              disabled={snapshot.categories.some(
-                                (item) => item.id !== category.id && item.name === name,
-                              )}
-                            >
-                              {name}
-                            </option>
-                          ))}
-                        </select>
+                        />
                         <button
                           type="button"
                           onClick={() => renameCategory(category.id)}
@@ -939,6 +1126,7 @@ export function MediaWorkspace({
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
   const [selectedPageId, setSelectedPageId] = useState(snapshot.pages[0]?.id ?? "");
+  const [usageFilter, setUsageFilter] = useState<"all" | "referenced" | "unused">("all");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadAlt, setUploadAlt] = useState("");
   const [uploadCaption, setUploadCaption] = useState("");
@@ -951,11 +1139,6 @@ export function MediaWorkspace({
     alt: string;
     caption: string;
   } | null>(null);
-  const assets = snapshot.media.filter((asset) =>
-    `${asset.alt} ${asset.caption ?? ""} ${asset.source.kind === "url" ? asset.source.url : asset.source.key}`
-      .toLowerCase()
-      .includes(query.trim().toLowerCase()),
-  );
   const inputClass = "w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm";
 
   useEffect(
@@ -1038,6 +1221,7 @@ export function MediaWorkspace({
     let count = 0;
     for (const project of snapshot.projects) {
       if (project.coverMedia?.mediaId === mediaId) count += 1;
+      if (project.heroMedia?.mediaId === mediaId) count += 1;
       count += project.gallery.filter((item) => item.mediaId === mediaId).length;
       count += project.sections.reduce(
         (total, section) => total + section.media.filter((item) => item.mediaId === mediaId).length,
@@ -1045,6 +1229,11 @@ export function MediaWorkspace({
       );
     }
     if (snapshot.profile.portrait?.mediaId === mediaId) count += 1;
+    count += snapshot.profile.toolkit.filter(
+      ({ iconMedia }) => iconMedia?.mediaId === mediaId,
+    ).length;
+    if (snapshot.navigationLogo?.mediaId === mediaId) count += 1;
+    count += snapshot.services.filter((service) => service.image?.mediaId === mediaId).length;
     if (snapshot.seo.social.openGraphImage?.mediaId === mediaId) count += 1;
     if (snapshot.seo.social.twitterImage?.mediaId === mediaId) count += 1;
     for (const page of snapshot.pages) {
@@ -1053,6 +1242,21 @@ export function MediaWorkspace({
     }
     return count;
   }
+
+  const assets = snapshot.media.filter((asset) => {
+    const matchesQuery =
+      `${asset.alt} ${asset.caption ?? ""} ${asset.source.kind === "url" ? asset.source.url : asset.source.key}`
+        .toLowerCase()
+        .includes(query.trim().toLowerCase());
+    const references = usageCount(asset.id);
+    return (
+      matchesQuery &&
+      (usageFilter === "all" ||
+        (usageFilter === "referenced" && references > 0) ||
+        (usageFilter === "unused" && references === 0))
+    );
+  });
+  const referencedAssetCount = snapshot.media.filter((asset) => usageCount(asset.id) > 0).length;
 
   async function saveMedia() {
     if (!editingMedia) return;
@@ -1073,6 +1277,7 @@ export function MediaWorkspace({
     const projects = snapshot.projects.map((project) => ({
       ...project,
       coverMedia: updateReference(project.coverMedia),
+      heroMedia: updateReference(project.heroMedia),
       gallery: project.gallery.map((item) => updateReference(item)!),
       sections: project.sections.map((section) => ({
         ...section,
@@ -1082,7 +1287,16 @@ export function MediaWorkspace({
     const profile = {
       ...snapshot.profile,
       portrait: updateReference(snapshot.profile.portrait),
+      toolkit: snapshot.profile.toolkit.map((tool) => ({
+        ...tool,
+        iconMedia: updateReference(tool.iconMedia),
+      })),
     };
+    const navigationLogo = updateReference(snapshot.navigationLogo);
+    const services = snapshot.services.map((service) => ({
+      ...service,
+      image: updateReference(service.image),
+    }));
     const updateSeo = (seo: ContentSnapshot["seo"]) => ({
       ...seo,
       social: {
@@ -1096,7 +1310,9 @@ export function MediaWorkspace({
       ...snapshot,
       media,
       projects,
+      services,
       profile,
+      navigationLogo,
       pages,
       seo: updateSeo(snapshot.seo),
     });
@@ -1440,6 +1656,27 @@ export function MediaWorkspace({
           className={`${inputClass} pl-9`}
         />
       </label>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs text-muted-foreground">
+          {snapshot.media.length} assets · {referencedAssetCount} referenced ·{" "}
+          {snapshot.media.length - referencedAssetCount} unused
+        </p>
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>Usage</span>
+          <select
+            aria-label="Filter media by usage"
+            value={usageFilter}
+            onChange={(event) =>
+              setUsageFilter(event.target.value as "all" | "referenced" | "unused")
+            }
+            className="rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground"
+          >
+            <option value="all">All media</option>
+            <option value="referenced">Referenced</option>
+            <option value="unused">Unused</option>
+          </select>
+        </label>
+      </div>
       {assets.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-card/60 p-10 text-center">
           <Image aria-hidden="true" className="mx-auto h-8 w-8 text-muted-foreground" />
@@ -1458,6 +1695,7 @@ export function MediaWorkspace({
             const usage: string[] = [];
             for (const project of snapshot.projects) {
               if (project.coverMedia?.mediaId === asset.id) usage.push(`${project.title} cover`);
+              if (project.heroMedia?.mediaId === asset.id) usage.push(`${project.title} hero`);
               if (project.gallery.some(({ mediaId }) => mediaId === asset.id))
                 usage.push(`${project.title} gallery`);
               if (
@@ -1468,6 +1706,10 @@ export function MediaWorkspace({
                 usage.push(`${project.title} case study`);
             }
             if (snapshot.profile.portrait?.mediaId === asset.id) usage.push("Profile portrait");
+            if (snapshot.navigationLogo?.mediaId === asset.id) usage.push("Navigation logo");
+            for (const service of snapshot.services) {
+              if (service.image?.mediaId === asset.id) usage.push(`${service.title} service image`);
+            }
             snapshot.pages.forEach((page) => {
               if (page.seo.social.openGraphImage?.mediaId === asset.id)
                 usage.push(`${page.title} social image`);

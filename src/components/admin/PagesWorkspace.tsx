@@ -1,9 +1,21 @@
-import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, FilePlus2, Eye, EyeOff, Layers3, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Eye,
+  EyeOff,
+  FilePlus2,
+  Layers3,
+  Plus,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import { uploadCmsMediaFile, useCmsMediaUrls, validateCmsImageFile } from "@/lib/cms/media-storage";
 import {
   contentSnapshotSchema,
   pageSectionSchema,
   type ContentSnapshot,
+  type MediaAsset,
   type PageSection,
 } from "@/lib/cms/schema";
 
@@ -27,7 +39,28 @@ const sectionTypes = [
 ] as const;
 
 function createId(kind: string) {
-  return `${kind}:${crypto.randomUUID()}`;
+  const cryptoApi = globalThis.crypto;
+  const id = cryptoApi?.randomUUID?.();
+
+  if (id) {
+    return `${kind}:${id}`;
+  }
+
+  if (!cryptoApi?.getRandomValues) {
+    throw new Error("Secure ID generation is unavailable.");
+  }
+
+  const bytes = new Uint8Array(16);
+  cryptoApi.getRandomValues(bytes);
+
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+
+  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+
+  const uuid = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+
+  return `${kind}:${uuid}`;
 }
 
 function createSeo(title: string, slug: string): ContentSnapshot["seo"] {
@@ -143,14 +176,31 @@ function SectionFields({
   snapshot,
   pageSlug,
   pageSections,
+  mediaUrls,
+  onMediaUploaded,
   onChange,
 }: {
   section: PageSection;
   snapshot: ContentSnapshot;
   pageSlug: string;
   pageSections: PageSection[];
+  mediaUrls: Record<string, string>;
+  onMediaUploaded: (asset: MediaAsset) => boolean;
   onChange: (section: PageSection) => void;
 }) {
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadPreview, setUploadPreview] = useState("");
+  const [uploadAlt, setUploadAlt] = useState("");
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  useEffect(
+    () => () => {
+      if (uploadPreview) URL.revokeObjectURL(uploadPreview);
+    },
+    [uploadPreview],
+  );
+
   const setData = (data: PageSection["data"]) => onChange({ ...section, data } as PageSection);
   const input = (label: string, key: string, multiline = false) => (
     <Field
@@ -194,6 +244,41 @@ function SectionFields({
   );
 
   if (section.type === "hero") {
+    const backgroundImage = section.data.backgroundImage;
+    const backgroundAsset = snapshot.media.find((asset) => asset.id === backgroundImage?.mediaId);
+    const backgroundUrl = backgroundImage
+      ? (mediaUrls[backgroundImage.mediaId] ??
+        (backgroundAsset?.source.kind === "url" ? backgroundAsset.source.url : undefined))
+      : undefined;
+    const setBackgroundImage = (asset: MediaAsset | undefined) =>
+      setData({
+        ...section.data,
+        backgroundImage: asset ? { mediaId: asset.id, alt: asset.alt } : undefined,
+      });
+    const uploadBackgroundImage = async () => {
+      if (!uploadFile) return;
+      setUploadBusy(true);
+      setUploadError("");
+      try {
+        const asset = await uploadCmsMediaFile(uploadFile, {
+          alt: uploadAlt.trim() || uploadFile.name,
+          caption: uploadFile.name,
+        });
+        if (!onMediaUploaded(asset)) return;
+        setBackgroundImage(asset);
+        setUploadFile(null);
+        setUploadPreview("");
+        setUploadAlt("");
+      } catch (error) {
+        setUploadError(
+          error instanceof Error
+            ? error.message
+            : "The Hero background image could not be uploaded.",
+        );
+      } finally {
+        setUploadBusy(false);
+      }
+    };
     const targetOptions = [
       ...snapshot.pages
         .filter((page) => page.slug !== pageSlug)
@@ -277,6 +362,156 @@ function SectionFields({
         {input("Eyebrow", "eyebrow")}
         {input("Heading", "title")}
         <div className="sm:col-span-2">{input("Description", "body", true)}</div>
+        <fieldset className="grid gap-3 rounded-lg border border-border p-3 sm:col-span-2 sm:grid-cols-2">
+          <legend className="px-1 text-xs font-medium text-muted-foreground">
+            Hero proof points
+          </legend>
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-muted-foreground">Project count</span>
+            <input
+              aria-label="Project count"
+              type="text"
+              value={
+                section.data.projectsShippedCount ??
+                String(snapshot.projects.filter(({ visible }) => visible).length)
+              }
+              onChange={(event) =>
+                setData({ ...section.data, projectsShippedCount: event.target.value })
+              }
+              className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </label>
+          <Field
+            label="Project count suffix/text"
+            value={section.data.projectsShippedText ?? "projects shipped"}
+            onChange={(projectsShippedText) => setData({ ...section.data, projectsShippedText })}
+          />
+          <Field
+            label="Trusted-by introduction"
+            value={section.data.trustedByIntro ?? "Trusted by teams at"}
+            onChange={(trustedByIntro) => setData({ ...section.data, trustedByIntro })}
+          />
+          <Field
+            label="Company/client names"
+            value={
+              section.data.trustedByClients ??
+              snapshot.experience
+                .filter(({ visible }) => visible)
+                .map(({ company }) => company)
+                .join(", ")
+            }
+            onChange={(trustedByClients) => setData({ ...section.data, trustedByClients })}
+          />
+          <div className="sm:col-span-2">
+            <Field
+              label="Service categories"
+              value={
+                section.data.serviceCategories ??
+                "Brand identities · Packaging · Product advertising"
+              }
+              multiline
+              onChange={(serviceCategories) => setData({ ...section.data, serviceCategories })}
+            />
+          </div>
+        </fieldset>
+        <fieldset className="space-y-3 rounded-lg border border-border p-3 sm:col-span-2">
+          <legend className="px-1 text-xs font-medium text-muted-foreground">
+            Hero background image
+          </legend>
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-muted-foreground">
+              Select an image from the media library
+            </span>
+            <select
+              aria-label="Hero background image"
+              value={backgroundImage?.mediaId ?? ""}
+              onChange={(event) => {
+                const asset = snapshot.media.find(({ id }) => id === event.target.value);
+                setBackgroundImage(asset);
+              }}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
+            >
+              <option value="">No background image</option>
+              {snapshot.media.map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.caption || asset.alt || asset.id}
+                </option>
+              ))}
+            </select>
+          </label>
+          {backgroundUrl && (
+            <img src={backgroundUrl} alt="" className="max-h-48 w-full rounded-lg object-cover" />
+          )}
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-muted-foreground">
+              Upload a new background image
+            </span>
+            <input
+              aria-label="Upload Hero background image"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/avif"
+              disabled={uploadBusy}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                if (!file) return;
+                const validationError = validateCmsImageFile(file);
+                if (validationError) {
+                  setUploadFile(null);
+                  setUploadPreview("");
+                  setUploadError(validationError);
+                  return;
+                }
+                setUploadFile(file);
+                setUploadPreview(URL.createObjectURL(file));
+                setUploadAlt(backgroundImage?.alt ?? "");
+                setUploadError("");
+              }}
+              className="block w-full text-xs file:mr-3 file:rounded-md file:border-0 file:bg-accent file:px-3 file:py-2 file:text-xs file:font-medium"
+            />
+          </label>
+          {uploadFile && (
+            <>
+              <img
+                src={uploadPreview}
+                alt="Selected Hero background preview"
+                className="max-h-48 w-full rounded-lg object-cover"
+              />
+              <Field label="Background image alt text" value={uploadAlt} onChange={setUploadAlt} />
+              <button
+                type="button"
+                onClick={() => void uploadBackgroundImage()}
+                disabled={uploadBusy}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:cursor-wait disabled:opacity-60"
+              >
+                <Upload aria-hidden="true" className="h-4 w-4" />
+                {uploadBusy ? "Uploading image…" : "Upload and use as background"}
+              </button>
+            </>
+          )}
+          {uploadError && (
+            <p role="alert" className="text-xs text-destructive">
+              {uploadError}
+            </p>
+          )}
+          <label className="block space-y-1.5">
+            <span className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+              <span>Background opacity</span>
+              <span>{Math.round((section.data.backgroundOpacity ?? 0.25) * 100)}%</span>
+            </span>
+            <input
+              aria-label="Hero background opacity"
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={section.data.backgroundOpacity ?? 0.25}
+              onChange={(event) =>
+                setData({ ...section.data, backgroundOpacity: Number(event.target.value) })
+              }
+              className="w-full accent-primary"
+            />
+          </label>
+        </fieldset>
         <Field
           label="Primary button label"
           value={section.data.primaryCta.label}
@@ -455,6 +690,8 @@ export function PagesWorkspace({ snapshot, onChange }: PagesWorkspaceProps) {
   const [addingSection, setAddingSection] = useState<(typeof sectionTypes)[number]>("hero");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const { urls: mediaUrls } = useCmsMediaUrls(snapshot.media);
+  const uploadedMediaRef = useRef<MediaAsset[]>([]);
 
   const selectedPage = useMemo(
     () => snapshot.pages.find(({ id }) => id === selectedId) ?? null,
@@ -500,13 +737,19 @@ export function PagesWorkspace({ snapshot, onChange }: PagesWorkspaceProps) {
     const pages = currentPage
       ? snapshot.pages.map((page) => (page.id === committedPage.id ? committedPage : page))
       : [...snapshot.pages, committedPage];
-    const validation = contentSnapshotSchema.safeParse({ ...snapshot, pages });
+    const snapshotMediaIds = new Set(snapshot.media.map(({ id }) => id));
+    const media = [
+      ...snapshot.media,
+      ...uploadedMediaRef.current.filter(({ id }) => !snapshotMediaIds.has(id)),
+    ];
+    const validation = contentSnapshotSchema.safeParse({ ...snapshot, media, pages });
     if (!validation.success) {
       setError(validation.error.issues[0]?.message ?? "Check the page fields and references.");
       setSuccess("");
       return;
     }
     onChange(validation.data);
+    uploadedMediaRef.current = [];
     setSelectedId(pageDraft.id);
     setDraftPage(null);
     setAddingPage(false);
@@ -603,6 +846,24 @@ export function PagesWorkspace({ snapshot, onChange }: PagesWorkspaceProps) {
         section.id === sectionId ? update(section) : section,
       ),
     }));
+  }
+
+  function addUploadedMedia(asset: MediaAsset) {
+    const validation = contentSnapshotSchema.safeParse({
+      ...snapshot,
+      media: [asset, ...snapshot.media.filter(({ id }) => id !== asset.id)],
+    });
+    if (!validation.success) {
+      setError(validation.error.issues[0]?.message ?? "The uploaded media is invalid.");
+      setSuccess("");
+      return false;
+    }
+    uploadedMediaRef.current = [
+      ...uploadedMediaRef.current.filter(({ id }) => id !== asset.id),
+      asset,
+    ];
+    onChange(validation.data);
+    return true;
   }
 
   function reorderSection(sectionId: string, delta: number) {
@@ -1111,6 +1372,8 @@ export function PagesWorkspace({ snapshot, onChange }: PagesWorkspaceProps) {
                             snapshot={snapshot}
                             pageSlug={pageDraft.slug}
                             pageSections={pageDraft.sections}
+                            mediaUrls={mediaUrls}
+                            onMediaUploaded={addUploadedMedia}
                             onChange={(next) => updateSection(section.id, () => next)}
                           />
                         </div>

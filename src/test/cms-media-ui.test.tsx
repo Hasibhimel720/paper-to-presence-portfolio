@@ -1,10 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MediaWorkspace } from "@/components/admin/ContentWorkspaces";
 import { ProjectsWorkspace } from "@/components/admin/ProjectsWorkspace";
 import { createDemoContent } from "@/lib/cms/demo-content";
-import type { ContentSnapshot } from "@/lib/cms/schema";
+import type { ContentSnapshot, MediaAsset } from "@/lib/cms/schema";
 
 const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
@@ -109,6 +109,68 @@ describe("CMS media library interactions", () => {
       screen.queryByRole("button", { name: /upload to media library/i }),
     ).not.toBeInTheDocument();
     expect(screen.getByText(/Demo mode does not upload files/)).toBeInTheDocument();
+  });
+
+  it("shows service and navigation references and prevents deleting referenced media", async () => {
+    const snapshot = await createDemoContent();
+    const service = snapshot.services[0];
+    if (!service) throw new Error("Expected a demo service.");
+    const serviceAsset: MediaAsset = {
+      id: "service-image-reference",
+      source: { kind: "url", url: "https://images.example.test/service.webp" },
+      alt: "Service visual",
+      caption: "Service visual",
+    };
+    const unusedAsset: MediaAsset = {
+      id: "unused-image-reference",
+      source: { kind: "url", url: "https://images.example.test/unused.webp" },
+      alt: "Unused visual",
+      caption: "Unused visual",
+    };
+    snapshot.media = [serviceAsset, unusedAsset];
+    service.image = { mediaId: serviceAsset.id, alt: serviceAsset.alt };
+    snapshot.navigationLogo = { mediaId: serviceAsset.id, alt: serviceAsset.alt };
+    render(<MediaWorkspace snapshot={snapshot} onChange={vi.fn()} />);
+
+    const serviceCard = screen.getByRole("heading", { name: "Service visual" }).closest("article");
+    expect(serviceCard).not.toBeNull();
+    expect(serviceCard).toHaveTextContent(`${service.title} service image`);
+    expect(serviceCard).toHaveTextContent("Navigation logo");
+    expect(
+      within(serviceCard!).getByRole("button", { name: "Remove Service visual" }),
+    ).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Filter media by usage"), {
+      target: { value: "unused" },
+    });
+    expect(screen.queryByRole("heading", { name: "Service visual" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Unused visual" })).toBeInTheDocument();
+  });
+
+  it("updates the alt text on a referenced service image when media metadata changes", async () => {
+    const snapshot = await createDemoContent();
+    const service = snapshot.services[0];
+    if (!service) throw new Error("Expected a demo service.");
+    const asset: MediaAsset = {
+      id: "service-image-metadata",
+      source: { kind: "url", url: "https://images.example.test/service.webp" },
+      alt: "Old service visual",
+      caption: "Service visual",
+    };
+    snapshot.media = [asset];
+    service.image = { mediaId: asset.id, alt: asset.alt };
+    const onChange = vi.fn<(updatedSnapshot: ContentSnapshot) => void>();
+    render(<MediaWorkspace snapshot={snapshot} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit metadata" }));
+    fireEvent.change(screen.getByLabelText("Media alt text"), {
+      target: { value: "Updated service visual" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save metadata" }));
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledOnce());
+    const updatedSnapshot = onChange.mock.calls[0]?.[0];
+    expect(updatedSnapshot?.services[0]?.image?.alt).toBe("Updated service visual");
   });
 
   it("uploads a project cover image and adds the reference to the shared snapshot", async () => {

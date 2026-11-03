@@ -2,12 +2,16 @@ import { z } from "zod";
 
 export const CMS_SCHEMA_VERSION = 1 as const;
 
-export const categorySchema = z.enum([
-  "Brand Identity",
-  "Packaging Design",
-  "Product Advertising",
-  "Corporate Branding",
-  "Motion & Visual Design",
+export const categorySchema = z.string().trim().min(1).max(64);
+
+export const softwareIconSchema = z.enum([
+  "illustrator",
+  "photoshop",
+  "after-effects",
+  "premiere-pro",
+  "figma",
+  "other",
+  "custom",
 ]);
 
 export const toneSchema = z.enum([
@@ -26,6 +30,13 @@ const slugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
   message: "Use lowercase letters, numbers, and single hyphens in slugs.",
 });
 const orderSchema = z.number().int().nonnegative();
+const isoDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a valid calendar date.")
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  }, "Choose a valid calendar date.");
 const emailSchema = z
   .string()
   .refine((value) => value === "" || z.string().email().safeParse(value).success, {
@@ -56,17 +67,68 @@ const cssTokenValueSchema = z
     { message: "Use a hex, OKLCH, or semantic CSS variable color token." },
   );
 const fontFamilySchema = z.enum(["Space Grotesk", "Manrope", "system-ui", "sans-serif", "serif"]);
+const appearanceColorModeSchema = z.object({
+  colors: z.object({
+    background: cssTokenValueSchema,
+    surface: cssTokenValueSchema,
+    surfaceSecondary: cssTokenValueSchema,
+    foreground: cssTokenValueSchema,
+    mutedForeground: cssTokenValueSchema,
+    primary: cssTokenValueSchema,
+    primaryForeground: cssTokenValueSchema,
+    accent: cssTokenValueSchema,
+    border: cssTokenValueSchema,
+    input: cssTokenValueSchema,
+  }),
+  background: z.object({
+    gradientOpacity: z.number().min(0).max(100),
+    ambientIntensity: z.number().min(0).max(100),
+    gradientPosition: z.enum(["top", "center", "bottom"]),
+  }),
+  glass: z.object({
+    surfaceOpacity: z.number().min(0).max(100),
+    blur: z.number().min(0).max(32),
+    borderOpacity: z.number().min(0).max(100),
+    shadowIntensity: z.number().min(0).max(100),
+    highlightIntensity: z.number().min(0).max(100),
+  }),
+});
+
+export const appearanceSettingsSchema = z.object({
+  modes: z.object({
+    light: appearanceColorModeSchema,
+    dark: appearanceColorModeSchema,
+  }),
+  borderWidth: z.number().min(0.5).max(3),
+  cardRadius: z.number().min(0).max(48),
+  buttonRadius: z.number().min(0).max(999),
+  preset: z.enum([
+    "premium-glass",
+    "minimal-editorial",
+    "modern-minimal",
+    "premium-dark",
+    "monochromatic-light",
+  ]),
+});
+
+export type AppearanceSettings = z.infer<typeof appearanceSettingsSchema>;
 
 export const legacyMediaReferenceSchema = z.object({
   id: idSchema,
   src: z.string().min(1),
   alt: z.string(),
+  caption: z.string().optional(),
 });
 
 export const caseSectionSchema = z.object({
+  id: idSchema.optional(),
   title: z.string().min(1),
   body: z.string(),
   visual: z.string().optional(),
+  visible: z.boolean().optional(),
+  galleryLayout: z
+    .enum(["full-width", "two-column", "three-column", "masonry", "stacked", "carousel", "single"])
+    .optional(),
 });
 
 export const legacyProjectSchema = z.object({
@@ -76,8 +138,32 @@ export const legacyProjectSchema = z.object({
   type: z.string().min(1),
   description: z.string(),
   year: z.string().optional(),
+  client: z.string().optional(),
+  role: z.string().optional(),
+  services: z.array(z.string()).optional(),
+  heroTitle: z.string().optional(),
+  seoTitle: z.string().optional(),
+  seoDescription: z.string().optional(),
+  ctaHeading: z.string().optional(),
+  ctaBody: z.string().optional(),
+  ctaLabel: z.string().optional(),
+  ctaHref: z
+    .string()
+    .refine(
+      (value) => value.startsWith("/") || value.startsWith("#") || /^https?:\/\//i.test(value),
+      { message: "Use a site-relative path, hash, or http(s) URL." },
+    )
+    .optional(),
+  showClient: z.boolean().optional(),
+  showYear: z.boolean().optional(),
+  showRole: z.boolean().optional(),
+  showServices: z.boolean().optional(),
   tone: toneSchema,
   cover: z.string().min(1).optional(),
+  heroImage: z.string().min(1).optional(),
+  galleryLayout: z
+    .enum(["full-width", "two-column", "three-column", "masonry", "stacked", "carousel", "single"])
+    .optional(),
   placeholder: z.string(),
   behance: httpUrlSchema.optional(),
   sections: z.array(caseSectionSchema),
@@ -103,6 +189,16 @@ export const legacyServiceSchema = z.object({
   title: z.string().min(1),
   body: z.string(),
   items: z.array(z.string()),
+  badge: z.string().optional(),
+  image: z.string().min(1).optional(),
+  imageAlt: z.string().optional(),
+  imageFit: z.enum(["cover", "contain"]).optional(),
+  imagePosition: z
+    .object({
+      x: z.number().min(0).max(1),
+      y: z.number().min(0).max(1),
+    })
+    .optional(),
 });
 
 export const legacyExperienceSchema = z.object({
@@ -111,6 +207,9 @@ export const legacyExperienceSchema = z.object({
   type: z.string(),
   location: z.string(),
   dates: z.string(),
+  startDate: isoDateSchema.optional(),
+  endDate: isoDateSchema.optional(),
+  isCurrent: z.boolean().optional(),
   body: z.string(),
 });
 
@@ -253,6 +352,7 @@ export const legacyPortfolioContentSchema = z
 export const mediaReferenceSchema = z.object({
   mediaId: idSchema,
   alt: z.string(),
+  caption: z.string().optional(),
   focalPoint: z
     .object({
       x: z.number().min(0).max(1),
@@ -288,6 +388,10 @@ export const caseStudySectionSchema = z.object({
   title: z.string().min(1),
   body: z.string(),
   visual: z.string().optional(),
+  visible: z.boolean().optional(),
+  galleryLayout: z
+    .enum(["full-width", "two-column", "three-column", "masonry", "stacked", "carousel", "single"])
+    .optional(),
   media: z.array(mediaReferenceSchema),
 });
 
@@ -301,10 +405,34 @@ export const projectRecordSchema = z.object({
   type: z.string().min(1),
   description: z.string(),
   year: z.string().optional(),
+  client: z.string().optional(),
+  role: z.string().optional(),
+  services: z.array(z.string()).optional(),
+  heroTitle: z.string().optional(),
+  seoTitle: z.string().optional(),
+  seoDescription: z.string().optional(),
+  ctaHeading: z.string().optional(),
+  ctaBody: z.string().optional(),
+  ctaLabel: z.string().optional(),
+  ctaHref: z
+    .string()
+    .refine(
+      (value) => value.startsWith("/") || value.startsWith("#") || /^https?:\/\//i.test(value),
+      { message: "Use a site-relative path, hash, or http(s) URL." },
+    )
+    .optional(),
+  showClient: z.boolean().optional(),
+  showYear: z.boolean().optional(),
+  showRole: z.boolean().optional(),
+  showServices: z.boolean().optional(),
   tone: toneSchema,
   cover: z.string().min(1).optional(),
   coverMedia: mediaReferenceSchema.optional(),
+  heroMedia: mediaReferenceSchema.optional(),
   gallery: z.array(mediaReferenceSchema),
+  galleryLayout: z
+    .enum(["full-width", "two-column", "three-column", "masonry", "stacked", "carousel", "single"])
+    .optional(),
   placeholder: z.string(),
   behance: httpUrlSchema.optional(),
   sections: z.array(caseStudySectionSchema),
@@ -319,20 +447,57 @@ export const serviceRecordSchema = z.object({
   title: z.string().min(1),
   body: z.string(),
   items: z.array(z.string()),
+  badge: z.string().optional(),
+  image: mediaReferenceSchema.optional(),
+  imageFit: z.enum(["cover", "contain"]).optional(),
   visible: z.boolean(),
 });
 
-export const experienceRecordSchema = z.object({
-  id: idSchema,
-  order: orderSchema,
-  company: z.string().min(1),
-  role: z.string(),
-  type: z.string(),
-  location: z.string(),
-  dates: z.string(),
-  body: z.string(),
-  visible: z.boolean(),
-});
+export const experienceRecordSchema = z
+  .object({
+    id: idSchema,
+    order: orderSchema,
+    company: z.string().min(1),
+    role: z.string(),
+    type: z.string(),
+    location: z.string(),
+    dates: z.string(),
+    startDate: isoDateSchema.optional(),
+    endDate: isoDateSchema.optional(),
+    isCurrent: z.boolean().optional(),
+    body: z.string(),
+    visible: z.boolean(),
+  })
+  .superRefine((experience, context) => {
+    if (experience.isCurrent && !experience.startDate) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose a start date for current employment.",
+        path: ["startDate"],
+      });
+    }
+    if (experience.isCurrent && experience.endDate) {
+      context.addIssue({
+        code: "custom",
+        message: "Clear the end date for current employment.",
+        path: ["endDate"],
+      });
+    }
+    if (experience.startDate && !experience.isCurrent && !experience.endDate) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose an end date or mark this as current employment.",
+        path: ["endDate"],
+      });
+    }
+    if (experience.startDate && experience.endDate && experience.endDate < experience.startDate) {
+      context.addIssue({
+        code: "custom",
+        message: "End date cannot be earlier than start date.",
+        path: ["endDate"],
+      });
+    }
+  });
 
 export const processStepSchema = z.object({
   id: idSchema,
@@ -367,6 +532,8 @@ export const profileSchema = z.object({
       order: orderSchema,
       name: z.string().min(1),
       use: z.string(),
+      icon: softwareIconSchema.optional(),
+      iconMedia: mediaReferenceSchema.optional(),
     }),
   ),
   stats: z.array(
@@ -402,6 +569,16 @@ export const pageSectionSchema = z.discriminatedUnion("type", [
       eyebrow: z.string(),
       title: z.string().min(1),
       body: z.string(),
+      projectsShippedCount: z
+        .union([z.string(), z.number().int().nonnegative()])
+        .transform((value) => String(value))
+        .optional(),
+      projectsShippedText: z.string().optional(),
+      trustedByIntro: z.string().optional(),
+      trustedByClients: z.string().optional(),
+      serviceCategories: z.string().optional(),
+      backgroundImage: mediaReferenceSchema.optional(),
+      backgroundOpacity: z.number().min(0).max(1).optional(),
       primaryCta: ctaSchema,
       secondaryCta: ctaSchema.optional(),
     }),
@@ -559,22 +736,32 @@ export const footerSchema = z.object({
 
 export const themeSchema = z.object({
   colors: z.record(z.string().regex(/^[a-z][a-z0-9-]*$/), cssTokenValueSchema),
+  appearance: appearanceSettingsSchema.optional(),
   typography: z.object({
     displayFont: fontFamilySchema,
     bodyFont: fontFamilySchema,
     displayWeight: z.number().int().min(100).max(900).multipleOf(100),
     bodyWeight: z.number().int().min(100).max(900).multipleOf(100),
+    displayLetterSpacing: z.number().min(-0.1).max(0.2).optional(),
+    bodyLetterSpacing: z.number().min(-0.1).max(0.2).optional(),
+    displayLineHeight: z.number().min(0.8).max(2).optional(),
+    bodyLineHeight: z.number().min(1).max(2.5).optional(),
+    baseFontSize: z.number().min(12).max(24).optional(),
+    headingScale: z.number().min(1).max(1.5).optional(),
   }),
   spacing: z.object({
     scale: z.array(z.number().nonnegative()),
     sectionBlock: z.number().positive(),
   }),
   layout: z.object({
-    contentMaxWidth: z.number().positive(),
+    contentMaxWidth: z.number().min(640).max(1920),
     projectGrid: z.enum(["grid", "masonry", "editorial"]),
     sectionVariants: z.record(z.string(), z.string()),
+    sectionHorizontalPadding: z.number().min(8).max(64).optional(),
+    sectionHorizontalPaddingWide: z.number().min(8).max(96).optional(),
+    cardGap: z.number().min(8).max(48).optional(),
   }),
-  radius: z.number().nonnegative(),
+  radius: z.number().min(0).max(48),
 });
 
 export const revisionMetadataSchema = z.object({
@@ -603,6 +790,7 @@ export const contentSnapshotSchema = z
     revisions: z.array(revisionMetadataSchema),
     publication: publicationMetadataSchema,
     identity: siteSchema,
+    navigationLogo: mediaReferenceSchema.optional(),
     profile: profileSchema,
     pages: z.array(pageSchema),
     categories: z.array(categoryRecordSchema),
@@ -650,6 +838,20 @@ export const contentSnapshotSchema = z
       });
     };
 
+    const checkUnique = (values: string[], path: (string | number)[], label: string) => {
+      const seen = new Set<string>();
+      values.forEach((value, index) => {
+        if (seen.has(value)) {
+          context.addIssue({
+            code: "custom",
+            message: `Duplicate ${label}: ${value}.`,
+            path: [...path, index],
+          });
+        }
+        seen.add(value);
+      });
+    };
+
     const categoryIds = new Set(snapshot.categories.map(({ id }) => id));
     const projectIds = new Set(snapshot.projects.map(({ id }) => id));
     const serviceIds = new Set(snapshot.services.map(({ id }) => id));
@@ -665,6 +867,16 @@ export const contentSnapshotSchema = z
 
     checkUniqueIds(snapshot.categories, ["categories"]);
     checkUniqueOrder(snapshot.categories, ["categories"]);
+    checkUnique(
+      snapshot.categories.map(({ name }) => name.trim().toLocaleLowerCase()),
+      ["categories"],
+      "category name",
+    );
+    checkUnique(
+      snapshot.categories.map(({ slug }) => slug.toLocaleLowerCase()),
+      ["categories"],
+      "category slug",
+    );
     checkUniqueIds(snapshot.projects, ["projects"]);
     checkUniqueOrder(snapshot.projects, ["projects"]);
     snapshot.projects.forEach((project, index) => {
@@ -673,6 +885,24 @@ export const contentSnapshotSchema = z
     });
     checkUniqueIds(snapshot.services, ["services"]);
     checkUniqueOrder(snapshot.services, ["services"]);
+    snapshot.services.forEach((service, index) => {
+      if (service.image && !mediaIds.has(service.image.mediaId)) {
+        context.addIssue({
+          code: "custom",
+          message: `Service references unknown media: ${service.image.mediaId}`,
+          path: ["services", index, "image", "mediaId"],
+        });
+      }
+    });
+    snapshot.profile.toolkit.forEach((tool, index) => {
+      if (tool.iconMedia && !mediaIds.has(tool.iconMedia.mediaId)) {
+        context.addIssue({
+          code: "custom",
+          message: `Software icon references unknown media: ${tool.iconMedia.mediaId}`,
+          path: ["profile", "toolkit", index, "iconMedia", "mediaId"],
+        });
+      }
+    });
     checkUniqueIds(snapshot.experience, ["experience"]);
     checkUniqueOrder(snapshot.experience, ["experience"]);
     checkUniqueIds(snapshot.process, ["process"]);
@@ -747,6 +977,13 @@ export const contentSnapshotSchema = z
           code: "custom",
           message: `Project cover references unknown media: ${project.coverMedia.mediaId}`,
           path: ["projects", index, "coverMedia", "mediaId"],
+        });
+      }
+      if (project.heroMedia && !mediaIds.has(project.heroMedia.mediaId)) {
+        context.addIssue({
+          code: "custom",
+          message: `Project hero references unknown media: ${project.heroMedia.mediaId}`,
+          path: ["projects", index, "heroMedia", "mediaId"],
         });
       }
       project.gallery.forEach((media, mediaIndex) => {
@@ -941,6 +1178,21 @@ export const contentSnapshotSchema = z
         }
 
         if (section.type === "hero") {
+          if (section.data.backgroundImage && !mediaIds.has(section.data.backgroundImage.mediaId)) {
+            context.addIssue({
+              code: "custom",
+              message: `Hero references unknown background media: ${section.data.backgroundImage.mediaId}`,
+              path: [
+                "pages",
+                pageIndex,
+                "sections",
+                sectionIndex,
+                "data",
+                "backgroundImage",
+                "mediaId",
+              ],
+            });
+          }
           const ctas = [
             section.data.primaryCta,
             ...(section.data.secondaryCta ? [section.data.secondaryCta] : []),
@@ -1001,6 +1253,13 @@ export const contentSnapshotSchema = z
         code: "custom",
         message: `Profile references unknown portrait media: ${snapshot.profile.portrait.mediaId}`,
         path: ["profile", "portrait", "mediaId"],
+      });
+    }
+    if (snapshot.navigationLogo && !mediaIds.has(snapshot.navigationLogo.mediaId)) {
+      context.addIssue({
+        code: "custom",
+        message: `Navigation references unknown logo media: ${snapshot.navigationLogo.mediaId}`,
+        path: ["navigationLogo", "mediaId"],
       });
     }
     siteSeoMedia.forEach((reference) => {

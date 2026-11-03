@@ -71,14 +71,33 @@ async function createVerifiedAdminClient(
   return client;
 }
 
+function toIsoDateTime(value: string | null): string | null {
+  if (value === null) return null;
+
+  let normalized = value.replace(" ", "T");
+  normalized = normalized.replace(/([+-]\d{2})$/, "$1:00");
+
+  if (!/(Z|[+-]\d{2}:\d{2})$/i.test(normalized)) {
+    normalized += "Z";
+  }
+
+  const date = new Date(normalized);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`Invalid CMS timestamp: ${value}`);
+  }
+
+  return date.toISOString();
+}
+
 function mapRevision(row: RevisionRow): RevisionMetadata {
   return {
     id: row.id,
     number: Number(row.number),
     status: row.status,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    publishedAt: row.published_at,
+    createdAt: toIsoDateTime(row.created_at),
+    updatedAt: toIsoDateTime(row.updated_at),
+    publishedAt: toIsoDateTime(row.published_at),
     basedOnRevisionId: row.based_on_revision_id,
     createdBy: row.created_by,
   };
@@ -97,7 +116,7 @@ function buildSnapshot(
     status: publishedRevisionId ? "published" : "unpublished",
     publishedRevisionId,
     draftRevisionId,
-    updatedAt,
+    updatedAt: toIsoDateTime(updatedAt),
   };
   const snapshot = contentSnapshotSchema.parse({
     ...base,
@@ -178,13 +197,20 @@ export async function saveAdminCmsDraft(
   };
   validated.data.projects.forEach((project) => {
     addReference(project.coverMedia);
+    addReference(project.heroMedia);
     project.gallery.forEach(addReference);
     project.sections.forEach((section) => section.media.forEach(addReference));
   });
+  validated.data.services.forEach((service) => addReference(service.image));
   addReference(validated.data.profile.portrait);
+  validated.data.profile.toolkit.forEach((tool) => addReference(tool.iconMedia));
+  addReference(validated.data.navigationLogo);
   addReference(validated.data.seo.social.openGraphImage);
   addReference(validated.data.seo.social.twitterImage);
   validated.data.pages.forEach((page) => {
+    page.sections.forEach((section) => {
+      if (section.type === "hero") addReference(section.data.backgroundImage);
+    });
     addReference(page.seo.social.openGraphImage);
     addReference(page.seo.social.twitterImage);
   });
@@ -212,10 +238,18 @@ export async function saveAdminCmsDraft(
     );
   }
   if (error) {
+    console.error("CMS SAVE ERROR:", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+
     if (error.code === "42501") {
       throw new Error("This authenticated account is not authorized as a CMS administrator.");
     }
-    throw new Error("Unable to save the CMS draft. Check the migration and content validation.");
+
+    throw new Error(`CMS save failed (${error.code}): ${error.message}`);
   }
   const state = await callAdminState(client);
   if (!state.snapshot) throw new Error("The CMS saved the draft but did not return it.");
@@ -342,6 +376,13 @@ export async function loadPublishedCmsContent(
   const snapshot = await loadPublishedCmsSnapshot(environment);
   if (!snapshot) return null;
 
+  console.log("PUBLISHED NAV LOGO:", snapshot.navigationLogo);
+
+  console.log(
+    "PUBLISHED LOGO ASSET:",
+    snapshot.media.find((asset) => asset.id === snapshot.navigationLogo?.mediaId),
+  );
+
   const storageAssets = snapshot.media.filter(
     (asset): asset is MediaAsset & { source: { kind: "storage"; key: string } } =>
       asset.source.kind === "storage",
@@ -354,6 +395,11 @@ export async function loadPublishedCmsContent(
     60 * 60 * 24 * 7,
   );
   if (error || !data) {
+    console.error("PUBLISHED MEDIA SIGNING ERROR:", {
+      message: error?.message,
+      code: error?.statusCode,
+    });
+
     throw new Error("Unable to create public URLs for published CMS media.");
   }
 
@@ -365,7 +411,15 @@ export async function loadPublishedCmsContent(
   const mediaUrls: Record<string, string> = {};
   for (const asset of storageAssets) {
     const url = urls.get(asset.source.key);
-    if (!url) throw new Error("A published CMS media reference could not be delivered.");
+    if (!url) {
+      console.error("PUBLISHED MEDIA URL MISSING:", {
+        assetId: asset.id,
+        mediaKey: asset.source.key,
+        response: data.find((entry) => entry.path === asset.source.key),
+      });
+
+      throw new Error("A published CMS media reference could not be delivered.");
+    }
     mediaUrls[asset.id] = url;
   }
 

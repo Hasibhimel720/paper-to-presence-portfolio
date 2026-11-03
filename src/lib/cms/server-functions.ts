@@ -23,14 +23,24 @@ type RuntimeRequest = Request & {
 function getCmsEnvironment() {
   const request = getRequest() as RuntimeRequest;
   const environment = request.runtime?.cloudflare?.env;
-  if (!environment) {
-    throw new Error("CMS server bindings are unavailable in this request runtime.");
+
+  // Prefer Cloudflare bindings in deployed environments.
+  // Use Vite environment variables during local development.
+  const supabaseUrl = environment?.["SUPABASE_URL"] || import.meta.env.VITE_SUPABASE_URL;
+
+  const supabasePublishableKey =
+    environment?.["SUPABASE_PUBLISHABLE_KEY"] || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+  if (!supabaseUrl || !supabasePublishableKey) {
+    throw new Error("CMS configuration is missing. Configure Supabase URL and publishable key.");
   }
+
   setResponseHeader("Cache-Control", "no-store, private");
   setResponseHeader("Pragma", "no-cache");
+
   return {
-    SUPABASE_URL: environment["SUPABASE_URL"],
-    SUPABASE_PUBLISHABLE_KEY: environment["SUPABASE_PUBLISHABLE_KEY"],
+    SUPABASE_URL: supabaseUrl,
+    SUPABASE_PUBLISHABLE_KEY: supabasePublishableKey,
   };
 }
 

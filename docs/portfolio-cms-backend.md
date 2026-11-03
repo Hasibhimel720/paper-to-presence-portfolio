@@ -25,6 +25,14 @@ CMS tables have RLS enabled, direct table access is revoked, and privileged oper
 
 The `portfolio-cms-media` bucket is private and limited to JPEG, PNG, WebP, and AVIF files up to 10 MiB. Storage upload and delete policies require the CMS administrator allowlist. A read policy permits authorized administrators and objects referenced by the current published snapshot; public visitors cannot sign draft-only media. Media is uploaded under immutable generated keys. Failed metadata registration triggers best-effort object cleanup, and deletion is blocked while any retained revision contains the media record. Replaced or historical media is intentionally retained until no saved revision depends on it.
 
+Service illustrations use this same bucket and media-reference workflow. Each service stores its own optional image reference, fit, and focal point in the CMS snapshot; removing or replacing an image changes the content reference but does not immediately delete the stored asset. The Services workspace restricts selected files to JPEG, PNG, and WebP while retaining the shared 10 MiB limit. No additional bucket or Storage policy is required.
+
+Categories, services, experience entries, process steps, and FAQs are snapshot data. Collection order and visibility are synchronized with the matching homepage section, so additions and edits remain draft-only until Publish. Experience records may keep their legacy date text or use validated ISO start/end dates and a current-employment flag; current roles publish with a “Present” end label. Software icons for the About Digital Portfolio Pass use built-in icon identifiers or an optional custom media reference. Custom icon media is validated against the snapshot library and retained while a saved revision references it.
+
+Appearance settings are stored in the existing versioned CMS snapshot alongside the public theme tokens. Older snapshots without appearance settings remain valid and use the website defaults. Design Studio changes stay local until Save Draft, and only the separate Publish action changes the public site's active design; no additional table or migration is required.
+
+Project case studies use the same snapshot and media library. Projects can reference separate cover and hero images, an ordered gallery with alt text and captions, and ordered sections with their own visibility, image layout, and media references. The public project detail route resolves these references only from the published snapshot. Older project records remain valid, with the cover used as the hero image when no separate hero is configured. Project edits remain dashboard changes until saved as a draft and published; changing a slug changes its `/work/<slug>` URL.
+
 The current dashboard stays explicitly demo-only if server configuration or authorization is unavailable. Permanent save, restore, publish, and unpublish actions become available only after the backend setup succeeds.
 
 ## Operational limits

@@ -5,6 +5,7 @@ import { portfolioRepository } from "@/lib/cms/repository";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { ContentSnapshot } from "@/lib/cms/schema";
+import { ThemeToggle } from "@/components/site/ThemeToggle";
 
 type NavigationTarget = ContentSnapshot["navigation"][number]["target"];
 
@@ -29,7 +30,13 @@ function navigationHref(target: NavigationTarget, snapshot?: ContentSnapshot) {
   return `/#${anchor}`;
 }
 
-export function SiteNav({ snapshot }: { snapshot?: ContentSnapshot | undefined }) {
+export function SiteNav({
+  snapshot,
+  mediaUrls = {},
+}: {
+  snapshot?: ContentSnapshot | undefined;
+  mediaUrls?: Record<string, string>;
+}) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const nav = snapshot
@@ -44,6 +51,11 @@ export function SiteNav({ snapshot }: { snapshot?: ContentSnapshot | undefined }
         visible: true,
       }));
   const identity = snapshot?.identity ?? staticContent.site;
+  const logoAsset = snapshot?.media.find((asset) => asset.id === snapshot.navigationLogo?.mediaId);
+  const logoUrl = snapshot?.navigationLogo
+    ? (mediaUrls[snapshot.navigationLogo.mediaId] ??
+      (logoAsset?.source.kind === "url" ? logoAsset.source.url : undefined))
+    : undefined;
   const socialLinks = snapshot?.contact.socialLinks ?? {
     behance: identity.behance,
     linkedin: identity.linkedin,
@@ -62,15 +74,29 @@ export function SiteNav({ snapshot }: { snapshot?: ContentSnapshot | undefined }
     <header className="fixed inset-x-0 top-4 z-50 px-4">
       <div
         className={cn(
-          "mx-auto flex h-14 max-w-3xl items-center justify-between gap-2 rounded-full border pl-2 pr-2 transition-all duration-500",
+          "glass-nav mx-auto flex h-14 max-w-3xl items-center justify-between gap-2 rounded-full border pl-2 pr-2 transition-all duration-500",
           scrolled || open
             ? "border-border bg-background/85 backdrop-blur-xl shadow-[0_12px_40px_-16px_var(--glow)]"
             : "border-border/60 bg-background/60 backdrop-blur-md",
         )}
       >
         <Link to="/" className="flex items-center gap-2.5" onClick={() => setOpen(false)}>
-          <span className="grid h-10 w-10 place-items-center rounded-full bg-primary font-display text-sm font-bold text-primary-foreground shadow-[0_0_18px_var(--glow)]">
-            H.
+          <span
+            className={cn(
+              "grid h-10 w-10 shrink-0 place-items-center",
+              !logoUrl &&
+                "rounded-full bg-primary font-display text-sm font-bold text-primary-foreground shadow-[0_0_18px_var(--glow)]",
+            )}
+          >
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={snapshot?.navigationLogo?.alt || `${identity.name} logo`}
+                className="max-h-10 max-w-10 object-contain"
+              />
+            ) : (
+              "H."
+            )}
           </span>
           <span className="font-display text-sm font-semibold tracking-wide">{identity.name}</span>
         </Link>
@@ -92,21 +118,24 @@ export function SiteNav({ snapshot }: { snapshot?: ContentSnapshot | undefined }
             Let's Talk <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </nav>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="rounded-full md:hidden"
-          aria-label={open ? "Close menu" : "Open menu"}
-          aria-expanded={open}
-          onClick={() => setOpen((o) => !o)}
-        >
-          {open ? <X /> : <Menu />}
-        </Button>
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full md:hidden"
+            aria-label={open ? "Close menu" : "Open menu"}
+            aria-expanded={open}
+            onClick={() => setOpen((o) => !o)}
+          >
+            {open ? <X /> : <Menu />}
+          </Button>
+        </div>
       </div>
       {open && (
         <nav
           aria-label="Mobile"
-          className="mx-auto mt-2 flex max-w-3xl flex-col rounded-3xl border border-border bg-background/95 p-6 backdrop-blur-xl md:hidden"
+          className="glass-panel mx-auto mt-2 flex max-w-3xl flex-col rounded-3xl border border-border bg-background/95 p-6 backdrop-blur-xl md:hidden"
         >
           {nav.map((item, i) => (
             <a

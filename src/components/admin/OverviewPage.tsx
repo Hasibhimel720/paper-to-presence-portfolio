@@ -1,13 +1,10 @@
 import {
   ArrowUpRight,
   BriefcaseBusiness,
-  CircleHelp,
-  Clock3,
+  Eye,
   FileText,
   Layers3,
   Sparkles,
-  Tags,
-  WandSparkles,
   Images,
   Palette,
   Settings2,
@@ -18,9 +15,17 @@ type OverviewPageProps = {
   snapshot: ContentSnapshot;
   onOpenSection: (section: string) => void;
   demoMode: boolean;
+  hasUnsavedChanges: boolean;
+  onPreview: () => void;
 };
 
-export function OverviewPage({ snapshot, onOpenSection, demoMode }: OverviewPageProps) {
+export function OverviewPage({
+  snapshot,
+  onOpenSection,
+  demoMode,
+  hasUnsavedChanges,
+  onPreview,
+}: OverviewPageProps) {
   const visibleSections = snapshot.pages.reduce(
     (total, page) => total + page.sections.filter(({ visible }) => visible).length,
     0,
@@ -31,41 +36,28 @@ export function OverviewPage({ snapshot, onOpenSection, demoMode }: OverviewPage
     value ? new Date(value).toLocaleString() : "Not yet saved";
   const stats = [
     { label: "Projects", value: snapshot.projects.length, icon: BriefcaseBusiness },
-    { label: "Visible projects", value: visibleProjects, icon: BriefcaseBusiness },
-    { label: "Categories", value: snapshot.categories.length, icon: Tags },
     { label: "Services", value: snapshot.services.length, icon: Sparkles },
-    { label: "Experience", value: snapshot.experience.length, icon: Clock3 },
-    { label: "Process steps", value: snapshot.process.length, icon: WandSparkles },
-    { label: "FAQs", value: snapshot.faqs.length, icon: CircleHelp },
+    { label: "Media assets", value: snapshot.media.length, icon: Images },
     { label: "Pages", value: snapshot.pages.length, icon: FileText },
-    {
-      label: "Visible sections",
-      value: visibleSections,
-      icon: Layers3,
-    },
-    {
-      label: "Media records",
-      value: snapshot.media.length,
-      icon: Images,
-    },
-    {
-      label: "Hidden page sections",
-      value:
-        snapshot.pages.reduce((total, page) => total + page.sections.length, 0) - visibleSections,
-      icon: Layers3,
-    },
   ];
+  const publicationLabel = demoMode
+    ? "Demo content"
+    : snapshot.publication.status === "published"
+      ? "Published"
+      : snapshot.publication.draftRevisionId
+        ? "Draft saved"
+        : "Not published";
 
   return (
     <div className="space-y-8">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">Workspace overview</p>
+          <p className="text-sm font-medium text-muted-foreground">Portfolio overview</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Good to see you</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
             {demoMode
               ? "Demo mode uses temporary session content and cannot save changes to your portfolio."
-              : "Edit content, save private drafts, and publish changes to the public portfolio when ready."}
+              : "A quick view of your content and publication state. Changes stay private until you publish."}
           </p>
         </div>
         <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium">
@@ -74,7 +66,34 @@ export function OverviewPage({ snapshot, onOpenSection, demoMode }: OverviewPage
         </span>
       </header>
 
-      <section aria-label="Content statistics" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {hasUnsavedChanges && (
+        <p
+          role="status"
+          className="rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 text-sm"
+        >
+          <span className="font-medium">Unsaved changes.</span> Save a draft from the dashboard
+          header before publishing.
+        </p>
+      )}
+
+      <section
+        aria-label="Content and publication status"
+        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
+      >
+        <article className="rounded-2xl border border-primary/25 bg-primary/5 p-5 sm:col-span-2 xl:col-span-1">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Publication</span>
+            <Palette aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="mt-4 text-xl font-semibold">{publicationLabel}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {hasUnsavedChanges
+              ? "Local edits not saved"
+              : snapshot.publication.draftRevisionId
+                ? `Draft revision ${snapshot.revisions.find(({ id }) => id === snapshot.publication.draftRevisionId)?.number ?? ""}`
+                : "Published state is unchanged"}
+          </p>
+        </article>
         {stats.map(({ label, value, icon: Icon }) => (
           <article key={label} className="rounded-2xl border border-border bg-card p-5">
             <div className="flex items-center justify-between">
@@ -100,13 +119,13 @@ export function OverviewPage({ snapshot, onOpenSection, demoMode }: OverviewPage
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <button
               type="button"
-              onClick={() => onOpenSection("projects")}
+              onClick={() => onOpenSection("pages")}
               className="group flex items-center justify-between rounded-xl border border-border p-4 text-left transition-colors hover:bg-accent"
             >
               <span>
-                <span className="block text-sm font-medium">Explore projects</span>
+                <span className="block text-sm font-medium">Edit homepage</span>
                 <span className="mt-1 block text-xs text-muted-foreground">
-                  {snapshot.projects.length} projects available
+                  {snapshot.pages[0]?.sections.length ?? 0} homepage sections
                 </span>
               </span>
               <ArrowUpRight
@@ -116,13 +135,13 @@ export function OverviewPage({ snapshot, onOpenSection, demoMode }: OverviewPage
             </button>
             <button
               type="button"
-              onClick={() => onOpenSection("pages")}
+              onClick={() => onOpenSection("design")}
               className="group flex items-center justify-between rounded-xl border border-border p-4 text-left transition-colors hover:bg-accent"
             >
               <span>
-                <span className="block text-sm font-medium">Explore homepage</span>
+                <span className="block text-sm font-medium">Appearance / Design Studio</span>
                 <span className="mt-1 block text-xs text-muted-foreground">
-                  {snapshot.pages[0]?.sections.length ?? 0} ordered sections
+                  Current theme and metadata controls
                 </span>
               </span>
               <ArrowUpRight
@@ -145,16 +164,32 @@ export function OverviewPage({ snapshot, onOpenSection, demoMode }: OverviewPage
             </button>
             <button
               type="button"
-              onClick={() => onOpenSection("design")}
+              onClick={() => onOpenSection("media")}
               className="group flex items-center justify-between rounded-xl border border-border p-4 text-left transition-colors hover:bg-accent"
             >
               <span>
-                <span className="block text-sm font-medium">Edit design &amp; SEO</span>
+                <span className="block text-sm font-medium">Open Media Library</span>
                 <span className="mt-1 block text-xs text-muted-foreground">
-                  Preview theme and metadata controls
+                  {snapshot.media.length} registered assets
                 </span>
               </span>
               <ArrowUpRight aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
+            </button>
+            <button
+              type="button"
+              onClick={onPreview}
+              className="group flex items-center justify-between rounded-xl border border-border p-4 text-left transition-colors hover:bg-accent"
+            >
+              <span>
+                <span className="block text-sm font-medium">Preview current edits</span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  Preview without saving or publishing
+                </span>
+              </span>
+              <Eye
+                aria-hidden="true"
+                className="h-4 w-4 text-muted-foreground transition-transform group-hover:scale-105"
+              />
             </button>
           </div>
         </div>
@@ -219,6 +254,10 @@ export function OverviewPage({ snapshot, onOpenSection, demoMode }: OverviewPage
             <div className="flex justify-between gap-3">
               <dt className="text-muted-foreground">Publication state</dt>
               <dd className="font-medium">{snapshot.publication.status}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">Unsaved changes</dt>
+              <dd className="font-medium">{hasUnsavedChanges ? "Yes" : "No"}</dd>
             </div>
             <div className="flex justify-between gap-3">
               <dt className="text-muted-foreground">Draft revisions</dt>

@@ -5,7 +5,9 @@ import { SiteNav, SiteFooter } from "@/components/site/Chrome";
 import { ProjectVisual } from "@/components/site/ProjectVisual";
 import { Reveal } from "@/components/site/Reveal";
 import { ContactForm } from "@/components/site/ContactForm";
+import { SoftwareToolIcon } from "@/components/site/SoftwareToolIcon";
 import { getPublicThemeStyle, loadPublicPortfolio } from "@/lib/cms/public-content";
+import { inferSoftwareIcon } from "@/lib/cms/software-icons";
 import { cn } from "@/lib/utils";
 import type { ContentSnapshot, LegacyPortfolioContent, PageSection } from "@/lib/cms/schema";
 
@@ -127,12 +129,12 @@ export function PortfolioPage({
   return (
     <div
       className={cn(
-        "overflow-x-clip",
+        "portfolio-theme overflow-x-clip",
         (snapshot?.origin === "cms" || previewMode) && "portfolio-public",
       )}
       style={themeStyle}
     >
-      <SiteNav snapshot={snapshot} />
+      <SiteNav snapshot={snapshot} mediaUrls={mediaUrls} />
       <main>
         {heroSection?.visible !== false && (
           <Hero
@@ -141,6 +143,7 @@ export function PortfolioPage({
             experience={experience}
             data={heroSection?.type === "hero" ? heroSection.data : undefined}
             snapshot={snapshot}
+            mediaUrls={mediaUrls}
           />
         )}
         {highlightsSection?.visible !== false && (
@@ -172,6 +175,7 @@ export function PortfolioPage({
             site={site}
             projects={projects}
             profile={snapshot?.profile}
+            media={snapshot?.media ?? []}
             mediaUrls={mediaUrls}
             data={profileSection?.type === "profile" ? profileSection.data : undefined}
           />
@@ -285,19 +289,44 @@ function Hero({
   experience,
   data,
   snapshot,
+  mediaUrls,
 }: Pick<LegacyPortfolioContent, "site" | "projects" | "experience"> & {
   data?: HeroData | undefined;
   snapshot?: ContentSnapshot | undefined;
+  mediaUrls: Record<string, string>;
 }) {
   const title = data?.title || "Where Strategy Becomes Identity";
   const words = title.split(/\s+/);
   const firstLineEnd = Math.ceil(words.length / 2);
+  const projectCount = data?.projectsShippedCount ?? String(projects.length);
+  const projectCountText = data?.projectsShippedText ?? "projects shipped";
+  const trustedByIntro = data?.trustedByIntro ?? "Trusted by teams at";
+  const trustedByClients =
+    data?.trustedByClients ?? experience.map((entry) => entry.company).join(", ");
+  const serviceCategories =
+    data?.serviceCategories ?? "Brand identities · Packaging · Product advertising";
+  const backgroundAsset = snapshot?.media.find(
+    (asset) => asset.id === data?.backgroundImage?.mediaId,
+  );
+  const backgroundUrl = data?.backgroundImage
+    ? (mediaUrls[data.backgroundImage.mediaId] ??
+      (backgroundAsset?.source.kind === "url" ? backgroundAsset.source.url : undefined))
+    : undefined;
   return (
     <section className="relative isolate overflow-hidden pt-36 pb-16 md:pt-44">
+      {backgroundUrl && (
+        <img
+          aria-hidden="true"
+          src={backgroundUrl}
+          alt=""
+          className="absolute inset-0 -z-10 h-full w-full object-cover"
+          style={{ opacity: data?.backgroundOpacity ?? 0.25 }}
+        />
+      )}
       {/* ambient glows */}
       <div aria-hidden className="absolute inset-0 -z-10">
-        <div className="absolute left-1/2 top-[-20%] h-[560px] w-[860px] -translate-x-1/2 rounded-full bg-primary/15 blur-[140px]" />
-        <div className="absolute right-[-10%] top-[30%] h-[380px] w-[380px] rounded-full bg-tangerine/10 blur-[120px]" />
+        <div className="hero-ambient-primary absolute left-1/2 top-[-20%] h-[560px] w-[860px] -translate-x-1/2 rounded-full bg-primary/15 blur-[140px]" />
+        <div className="hero-ambient-secondary absolute right-[-10%] top-[30%] h-[380px] w-[380px] rounded-full bg-tangerine/10 blur-[120px]" />
       </div>
       <Sparkle className="absolute left-[8%] top-24 text-4xl animate-floaty" />
       <Sparkle className="absolute right-[10%] top-40 text-2xl animate-floaty [animation-delay:1.2s]" />
@@ -305,7 +334,7 @@ function Hero({
 
       <div className="container-x text-center">
         <Reveal>
-          <p className="mx-auto inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-xs text-muted-foreground">
+          <p className="glass-panel mx-auto inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-xs text-muted-foreground">
             <span className="h-2 w-2 rounded-full bg-success shadow-[0_0_10px_var(--success)]" />
             {data?.eyebrow || site.availability}
           </p>
@@ -359,16 +388,17 @@ function Hero({
           <div className="glow-card mx-auto mt-14 max-w-xl px-8 py-6">
             <div className="flex items-center justify-center gap-3 text-2xl">
               <Sparkles className="h-5 w-5 text-primary" />
-              <span className="font-display font-semibold">{projects.length} projects shipped</span>
+              <span className="font-display font-semibold">
+                {projectCount} {projectCountText}
+              </span>
             </div>
-            {experience.length > 0 && (
+            {trustedByClients.trim() && (
               <p className="mt-2 text-sm text-muted-foreground">
-                Trusted by teams at {experience.map((e) => e.company).join(", ")}
+                {trustedByIntro && `${trustedByIntro} `}
+                {trustedByClients}
               </p>
             )}
-            <p className="mt-1 text-xs text-muted-foreground/70">
-              Brand identities · Packaging · Product advertising
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground/70">{serviceCategories}</p>
           </div>
         </Reveal>
       </div>
@@ -388,14 +418,14 @@ function WorkMarquee({
       <p className="eyebrow text-center">
         {label} · {projects.length} projects
       </p>
-      <div className="marquee-tilt mt-10 overflow-hidden py-6">
+      <div className="marquee-viewport mt-10 overflow-hidden py-12">
         <div className="flex w-max animate-marquee gap-6">
           {row.map((p, i) => (
             <Link
               key={p.slug + i}
               to="/work/$slug"
               params={{ slug: p.slug }}
-              className="marquee-card group block"
+              className="marquee-card group relative block"
             >
               <ProjectVisual project={p} zoom className="h-full w-full" />
             </Link>
@@ -445,7 +475,7 @@ function WorkList({
               "rounded-full border px-4 py-2 text-sm transition-colors",
               cat === c
                 ? "border-transparent bg-primary text-primary-foreground shadow-[0_8px_24px_-8px_var(--glow)]"
-                : "border-input text-muted-foreground hover:border-primary hover:text-foreground",
+                : "glass-button border-input text-muted-foreground hover:border-primary hover:text-foreground",
             )}
           >
             {c}
@@ -461,46 +491,29 @@ function WorkList({
       <div
         key={cat}
         className={cn(
-          "mt-8 grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-bottom-3 duration-500 sm:grid-cols-2",
-          layout === "masonry" ? "md:grid-cols-4 md:auto-rows-[250px]" : "md:grid-cols-3",
+          "project-editorial-gallery mt-8 animate-in fade-in slide-in-from-bottom-3 duration-500",
+          layout === "masonry"
+            ? "project-editorial-gallery-masonry"
+            : "project-editorial-gallery-grid",
         )}
       >
         {list.map((p, i) => (
-          <Reveal
-            key={p.slug}
-            delay={i * 60}
-            className={cn(
-              "h-full min-w-0",
-              layout === "masonry" && i % 8 === 0 && "md:col-span-2 md:row-span-2",
-              layout === "masonry" && i % 8 === 3 && "md:row-span-2",
-              layout === "masonry" && i % 8 === 5 && "md:col-span-2",
-            )}
-          >
+          <Reveal key={p.slug} delay={i * 60} className="project-editorial-item">
             <Link
               to="/work/$slug"
               params={{ slug: p.slug }}
-              className="glow-card group relative flex h-full min-h-[300px] flex-col overflow-hidden p-3 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_40px_-18px_var(--glow)] md:min-h-0"
+              aria-label={`View ${p.title} project`}
+              className="project-editorial-link group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 focus-visible:ring-offset-background"
             >
               <ProjectVisual
                 project={p}
                 zoom
-                className="min-h-[150px] w-full flex-1 rounded-xl transition-transform duration-500 group-hover:scale-[1.03]"
+                preserveAspectRatio
+                className={cn(
+                  "w-full rounded-xl transition-transform duration-500 group-hover:scale-[1.015]",
+                  p.cover ? "h-auto" : "aspect-[4/3]",
+                )}
               />
-
-              <div className="mt-3 flex shrink-0 items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <h3 className="break-words font-display text-base font-semibold leading-snug md:text-lg">
-                    {p.title}
-                  </h3>
-                  <p className="eyebrow mt-1.5 text-[9px] leading-relaxed md:!text-[10px]">
-                    {p.type} · {p.category}
-                  </p>
-                </div>
-
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-input text-muted-foreground transition-all duration-300 group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground">
-                  <ArrowUpRight className="h-4 w-4" />
-                </span>
-              </div>
             </Link>
           </Reveal>
         ))}
@@ -621,15 +634,29 @@ function Services({
           "Two things I do best, and three that keep a brand consistent everywhere it shows up."
         }
       />
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="cms-service-grid grid gap-5 md:grid-cols-2">
         {services.map((s, i) => (
           <Reveal key={s.n} delay={(i % 2) * 100}>
             <article className="glow-card h-full p-6 md:p-7">
-              <div className="h-28 overflow-hidden rounded-xl border border-border bg-background/60 p-3 md:h-32">
-                {serviceArt[s.n]}
+              <div className="service-image-frame">
+                {s.image ? (
+                  <img
+                    src={s.image}
+                    alt={s.imageAlt ?? ""}
+                    className="h-full w-full"
+                    style={{
+                      objectFit: s.imageFit ?? "cover",
+                      objectPosition: s.imagePosition
+                        ? `${s.imagePosition.x * 100}% ${s.imagePosition.y * 100}%`
+                        : "center",
+                    }}
+                  />
+                ) : (
+                  (serviceArt[s.n] ?? serviceArt["01"])
+                )}
               </div>
               <span className={cn("chip mt-5", i < 2 ? "!border-primary/40 !text-primary" : "")}>
-                {i < 2 ? "Core" : "Also"}
+                {s.badge ?? (i < 2 ? "Core" : "Also")}
               </span>
               <h3 className="mt-3 font-display text-xl font-semibold md:text-2xl">{s.title}</h3>
               <p className="mt-2 text-sm text-muted-foreground">{s.body}</p>
@@ -653,10 +680,12 @@ function About({
   site,
   projects,
   profile,
+  media,
   mediaUrls,
   data,
 }: Pick<LegacyPortfolioContent, "site" | "projects"> & {
   profile?: ContentSnapshot["profile"] | undefined;
+  media: ContentSnapshot["media"];
   mediaUrls: Record<string, string>;
   data?: ProfileData | undefined;
 }) {
@@ -670,15 +699,19 @@ function About({
         { v: "3", l: "Studios & teams" },
         { v: "6+", l: "Industries served" },
       ];
-  const toolkit = profile?.toolkit.length
+  const toolkit: ContentSnapshot["profile"]["toolkit"] = profile?.toolkit.length
     ? [...profile.toolkit].sort((left, right) => left.order - right.order)
     : [
-        { name: "Adobe Illustrator", use: "Logos, packaging, marks and vector systems" },
-        { name: "Adobe Photoshop", use: "Profesonal retouching, Mockups and image work" },
-        { name: "Adobe After Effect", use: "Animations and motion graphics" },
-        { name: "Adobe Premiere Pro", use: "Video editing, assemble video clips and audio tracks" },
-        { name: "Figma", use: "Brand guidelines, layouts and presentations" },
-      ];
+        { name: "Adobe Illustrator", use: "", icon: "illustrator" as const },
+        { name: "Adobe Photoshop", use: "", icon: "photoshop" as const },
+        { name: "Adobe After Effect", use: "", icon: "after-effects" as const },
+        { name: "Adobe Premiere Pro", use: "", icon: "premiere-pro" as const },
+        { name: "Figma", use: "", icon: "figma" as const },
+      ].map((tool, order) => ({
+        ...tool,
+        id: `fallback-tool:${order}`,
+        order,
+      }));
   const biography = profile?.biography.length
     ? profile.biography
     : [
@@ -716,7 +749,7 @@ function About({
                   </div>
                 )}
               </div>
-              <div className="px-6 pb-6">
+              <div className="px-6 pb-4">
                 <p className="font-display text-2xl font-semibold">{site.fullName}</p>
                 <p className="text-sm text-muted-foreground">{site.role}</p>
                 <dl className="mt-5 grid grid-cols-2 gap-4 text-sm">
@@ -748,11 +781,36 @@ function About({
                   </div>
                 </dl>
                 <div className="barcode mt-6" aria-hidden />
+                <ul
+                  aria-label="Software icons"
+                  className="mt-4 flex flex-wrap items-center justify-center gap-3 border-t border-border/70 pt-4"
+                >
+                  {toolkit.map((tool) => {
+                    const iconAsset = tool.iconMedia;
+                    const asset = iconAsset
+                      ? media.find(({ id }) => id === iconAsset.mediaId)
+                      : undefined;
+                    const iconUrl = iconAsset
+                      ? (mediaUrls[iconAsset.mediaId] ??
+                        (asset?.source.kind === "url" ? asset.source.url : undefined))
+                      : undefined;
+                    return (
+                      <li key={tool.id ?? tool.name}>
+                        <SoftwareToolIcon
+                          label={tool.name}
+                          icon={tool.icon ?? inferSoftwareIcon(tool.name)}
+                          mediaUrl={iconUrl}
+                          className="h-9 w-9"
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
             </div>
           </div>
         </Reveal>
-        {/* Copy + stats + toolkit */}
+        {/* Copy and statistics */}
         <div className="lg:col-span-7">
           <Reveal>
             <p className="eyebrow">{data?.eyebrow || "About"}</p>
@@ -778,17 +836,6 @@ function About({
                 </div>
               ))}
             </div>
-          </Reveal>
-          <Reveal delay={200}>
-            <p className="eyebrow mt-12">Toolkit</p>
-            <ul className="mt-4 divide-y divide-border border-y border-border">
-              {toolkit.map((t) => (
-                <li key={t.name} className="py-4">
-                  <p className="font-medium">{t.name}</p>
-                  <p className="text-sm text-muted-foreground">{t.use}</p>
-                </li>
-              ))}
-            </ul>
           </Reveal>
         </div>
       </div>
@@ -850,7 +897,9 @@ function Experience({
           </div>
           {/* current role */}
           <div key={active} className="mt-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <p className="eyebrow">{active === 0 ? "Current role" : "Earlier role"}</p>
+            <p className="eyebrow">
+              {(current.isCurrent ?? active === 0) ? "Current role" : "Earlier role"}
+            </p>
             <h3 className="mt-2 font-display text-2xl font-semibold md:text-3xl">{current.role}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               {current.company} · {current.dates} · {current.location}
@@ -951,7 +1000,7 @@ function Faq({
                 "rounded-full border px-4 py-2 text-left text-sm transition-colors",
                 open === i
                   ? "border-transparent bg-primary text-primary-foreground"
-                  : "border-input text-muted-foreground hover:border-primary hover:text-foreground",
+                  : "glass-button border-input text-muted-foreground hover:border-primary hover:text-foreground",
               )}
             >
               {f.q}
@@ -1011,7 +1060,7 @@ function Contact({
           <p className="mt-4 text-muted-foreground">
             {data?.intro || "Transforming your vision into creative reality."}
           </p>
-          <p className="mx-auto mt-8 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-xs text-muted-foreground">
+          <p className="glass-panel mx-auto mt-8 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-xs text-muted-foreground">
             <span className="h-2 w-2 rounded-full bg-success shadow-[0_0_10px_var(--success)]" />
             {site.availability}
           </p>

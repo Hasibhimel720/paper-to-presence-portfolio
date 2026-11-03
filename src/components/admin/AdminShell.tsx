@@ -10,12 +10,19 @@ import {
   Images,
   LayoutDashboard,
   LogOut,
+  Mail,
   Menu,
+  Monitor,
   Palette,
+  PanelLeftClose,
+  PanelLeftOpen,
   Search,
   Settings2,
+  Smartphone,
   Sparkles,
   Tags,
+  Tablet,
+  UserRound,
   WandSparkles,
 } from "lucide-react";
 import { createDemoContent } from "@/lib/cms/demo-content";
@@ -32,6 +39,7 @@ import {
   unpublishAdminCmsServerFn,
 } from "@/lib/cms/server-functions";
 import { OverviewPage } from "@/components/admin/OverviewPage";
+import { AppearanceWorkspace } from "@/components/admin/AppearanceWorkspace";
 import { PagesWorkspace } from "@/components/admin/PagesWorkspace";
 import { ProjectsWorkspace } from "@/components/admin/ProjectsWorkspace";
 import {
@@ -39,6 +47,7 @@ import {
   CollectionWorkspace,
   MediaWorkspace,
 } from "@/components/admin/ContentWorkspaces";
+import { ServicesWorkspace } from "@/components/admin/ServicesWorkspace";
 import { DesignSeoWorkspace, SiteSettingsWorkspace } from "@/components/admin/SettingsWorkspaces";
 
 type AdminShellProps = {
@@ -67,23 +76,50 @@ function mergeMediaLibrary(
   return contentSnapshotSchema.parse({ ...snapshot, media: Array.from(mediaById.values()) });
 }
 
-const sections = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "pages", label: "Pages", icon: FileText },
-  { id: "projects", label: "Projects", icon: BriefcaseBusiness },
-  { id: "categories", label: "Categories", icon: Tags },
-  { id: "services", label: "Services", icon: Sparkles },
-  { id: "experience", label: "Experience", icon: Clock3 },
-  { id: "process", label: "Process", icon: WandSparkles },
-  { id: "faqs", label: "FAQs", icon: CircleHelp },
-  { id: "media", label: "Media library", icon: Images },
-  { id: "design", label: "Design & SEO", icon: Palette },
-  { id: "settings", label: "Site settings", icon: Settings2 },
+const workspaceGroups = [
+  {
+    label: "Dashboard",
+    sections: [{ id: "overview", label: "Overview", icon: LayoutDashboard }],
+  },
+  {
+    label: "Website content",
+    sections: [
+      { id: "pages", label: "Homepage", icon: FileText },
+      { id: "projects", label: "Projects", icon: BriefcaseBusiness },
+      { id: "categories", label: "Categories", icon: Tags },
+      { id: "services", label: "Services", icon: Sparkles },
+      { id: "experience", label: "Experience", icon: Clock3 },
+      { id: "process", label: "Process", icon: WandSparkles },
+      { id: "faqs", label: "FAQ", icon: CircleHelp },
+      { id: "about", label: "About", icon: UserRound },
+      { id: "contact", label: "Contact", icon: Mail },
+    ],
+  },
+  {
+    label: "Website design",
+    sections: [{ id: "design", label: "Appearance / Design Studio", icon: Palette }],
+  },
+  {
+    label: "Configuration",
+    sections: [{ id: "seo", label: "SEO & Metadata", icon: Search }],
+  },
+  {
+    label: "Media",
+    sections: [{ id: "media", label: "Media Library", icon: Images }],
+  },
+  {
+    label: "Site configuration",
+    sections: [{ id: "settings", label: "Site Settings", icon: Settings2 }],
+  },
 ];
+
+const sections = workspaceGroups.flatMap(({ sections: items }) => items);
 
 export function AdminShell({ onSignOut, signingOut, getAccessToken }: AdminShellProps) {
   const [snapshot, setSnapshot] = useState<ContentSnapshot | null>(null);
   const [activeSection, setActiveSection] = useState("overview");
+  const [visitedSections, setVisitedSections] = useState(() => new Set(["overview"]));
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [snapshotError, setSnapshotError] = useState("");
   const [cmsMessage, setCmsMessage] = useState("");
@@ -95,11 +131,23 @@ export function AdminShell({ onSignOut, signingOut, getAccessToken }: AdminShell
   const [pendingMediaDeletionIds, setPendingMediaDeletionIds] = useState<string[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewMessage, setPreviewMessage] = useState("");
+  const [previewTheme, setPreviewTheme] = useState<"light" | "dark">("light");
+  const [previewViewport, setPreviewViewport] = useState<"desktop" | "tablet" | "mobile">(
+    "desktop",
+  );
   const previewDialogRef = useRef<HTMLDivElement>(null);
   const previewCloseButtonRef = useRef<HTMLButtonElement>(null);
   const { urls: previewMediaUrls, error: previewMediaError } = useCmsMediaUrls(
     previewOpen ? (snapshot?.media ?? emptyMedia) : emptyMedia,
   );
+
+  function openSection(section: string) {
+    setActiveSection(section);
+    setVisitedSections((current) => {
+      if (current.has(section)) return current;
+      return new Set(current).add(section);
+    });
+  }
 
   useEffect(() => {
     if (!previewOpen) return;
@@ -113,6 +161,20 @@ export function AdminShell({ onSignOut, signingOut, getAccessToken }: AdminShell
       previousFocus?.focus();
     };
   }, [previewOpen]);
+
+  useEffect(() => {
+    if (!previewOpen) return;
+    const root = document.documentElement;
+    const previousTheme = root.dataset["theme"];
+    root.dataset["theme"] = previewTheme;
+    return () => {
+      if (previousTheme === "light" || previousTheme === "dark") {
+        root.dataset["theme"] = previousTheme;
+      } else {
+        delete root.dataset["theme"];
+      }
+    };
+  }, [previewOpen, previewTheme]);
 
   useEffect(() => {
     let active = true;
@@ -170,6 +232,21 @@ export function AdminShell({ onSignOut, signingOut, getAccessToken }: AdminShell
   }, [getAccessToken]);
 
   const activeLabel = sections.find(({ id }) => id === activeSection)?.label ?? "Overview";
+  const activeDescription =
+    activeSection === "overview"
+      ? "Publication status and content at a glance."
+      : activeSection === "pages"
+        ? "Edit the homepage sections and their presentation."
+        : activeSection === "design"
+          ? "Adjust public colors, typography, glass style, and layout."
+          : activeSection === "seo"
+            ? "Manage search and social metadata for your website."
+            : `Manage ${activeLabel.toLowerCase()} for your portfolio.`;
+  const previewWidth = {
+    desktop: "1440px",
+    tablet: "768px",
+    mobile: "390px",
+  }[previewViewport];
 
   function commitSnapshot(candidate: ContentSnapshot) {
     const validation = contentSnapshotSchema.safeParse(candidate);
@@ -315,70 +392,121 @@ export function AdminShell({ onSignOut, signingOut, getAccessToken }: AdminShell
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r border-border bg-card lg:flex">
-        <a href="/" className="flex h-16 items-center gap-3 border-b border-border px-5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground">
-            H
-          </span>
-          <span>
-            <span className="block text-sm font-semibold">Hasib.Design</span>
-            <span className="block text-xs text-muted-foreground">Portfolio CMS</span>
-          </span>
-        </a>
-
-        <div className="px-4 pt-5">
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
-            <Search aria-hidden="true" className="h-3.5 w-3.5" />
-            <span>Workspace navigation</span>
-          </div>
+      <aside
+        className={`fixed inset-y-0 left-0 z-20 hidden flex-col border-r border-border bg-card transition-[width] duration-200 lg:flex ${
+          sidebarCollapsed ? "w-20" : "w-64"
+        }`}
+      >
+        <div className="flex h-16 items-center justify-between gap-2 border-b border-border px-4">
+          <a
+            href="/"
+            className={`flex min-w-0 items-center gap-3 ${sidebarCollapsed ? "justify-center" : ""}`}
+            title="Hasib.Design portfolio"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground">
+              H
+            </span>
+            {!sidebarCollapsed && (
+              <span>
+                <span className="block text-sm font-semibold">Hasib.Design</span>
+                <span className="block text-xs text-muted-foreground">Portfolio CMS</span>
+              </span>
+            )}
+          </a>
+          <button
+            type="button"
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!sidebarCollapsed}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            className={`rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              sidebarCollapsed ? "absolute right-1 top-[4.5rem]" : ""
+            }`}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen aria-hidden="true" className="h-4 w-4" />
+            ) : (
+              <PanelLeftClose aria-hidden="true" className="h-4 w-4" />
+            )}
+          </button>
         </div>
 
-        <nav aria-label="Dashboard" className="flex-1 space-y-1 overflow-y-auto px-3 py-5">
-          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            Manage website
-          </p>
-          {sections.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              aria-current={activeSection === id ? "page" : undefined}
-              onClick={() => setActiveSection(id)}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
-                activeSection === id
-                  ? "bg-accent font-medium text-foreground"
-                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-              }`}
-            >
-              <Icon aria-hidden="true" className="h-4 w-4" />
-              {label}
-              {activeSection === id && (
-                <ChevronRight aria-hidden="true" className="ml-auto h-4 w-4" />
+        {!sidebarCollapsed && (
+          <div className="px-4 pt-5">
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+              <Search aria-hidden="true" className="h-3.5 w-3.5" />
+              <span>Workspace navigation</span>
+            </div>
+          </div>
+        )}
+
+        <nav
+          aria-label="Dashboard"
+          className={`flex-1 space-y-5 overflow-y-auto py-5 ${sidebarCollapsed ? "px-2" : "px-3"}`}
+        >
+          {workspaceGroups.map(({ label: groupLabel, sections: groupSections }) => (
+            <section key={groupLabel} aria-label={groupLabel}>
+              {!sidebarCollapsed && (
+                <h2 className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  {groupLabel}
+                </h2>
               )}
-            </button>
+              <div className="space-y-1">
+                {groupSections.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-label={label}
+                    aria-current={activeSection === id ? "page" : undefined}
+                    title={sidebarCollapsed ? label : undefined}
+                    onClick={() => openSection(id)}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      sidebarCollapsed ? "justify-center px-2" : ""
+                    } ${
+                      activeSection === id
+                        ? "bg-accent font-medium text-foreground"
+                        : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                    }`}
+                  >
+                    <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />
+                    {!sidebarCollapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
+                    {!sidebarCollapsed && activeSection === id && (
+                      <ChevronRight aria-hidden="true" className="ml-auto h-4 w-4 shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </section>
           ))}
         </nav>
 
-        <div className="border-t border-border p-3">
+        <div
+          className={`border-t border-border p-3 ${sidebarCollapsed ? "flex justify-center" : ""}`}
+        >
           <button
             type="button"
+            aria-label={signingOut ? "Signing out" : "Sign out"}
+            title={sidebarCollapsed ? "Sign out" : undefined}
             onClick={onSignOut}
             disabled={signingOut}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50 ${
+              sidebarCollapsed ? "" : "w-full"
+            }`}
           >
             <LogOut aria-hidden="true" className="h-4 w-4" />
-            {signingOut ? "Signing out…" : "Sign out"}
+            {!sidebarCollapsed && (signingOut ? "Signing out…" : "Sign out")}
           </button>
         </div>
       </aside>
 
-      <div className="lg:pl-64">
+      <div className={sidebarCollapsed ? "lg:pl-20" : "lg:pl-64"}>
         <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
           <div className="flex min-h-16 items-center justify-between gap-4 px-4 sm:px-7">
             <div className="flex min-w-0 items-center gap-3">
               <Menu aria-hidden="true" className="h-5 w-5 text-muted-foreground lg:hidden" />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{activeLabel}</p>
-                <p className="hidden text-xs text-muted-foreground sm:block">Portfolio workspace</p>
+                <p className="hidden text-xs text-muted-foreground sm:block">{activeDescription}</p>
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
@@ -419,7 +547,7 @@ export function AdminShell({ onSignOut, signingOut, getAccessToken }: AdminShell
                 key={id}
                 type="button"
                 aria-current={activeSection === id ? "page" : undefined}
-                onClick={() => setActiveSection(id)}
+                onClick={() => openSection(id)}
                 className={`shrink-0 rounded-lg px-3 py-2 text-xs ${
                   activeSection === id ? "bg-accent font-medium" : "text-muted-foreground"
                 }`}
@@ -573,60 +701,130 @@ export function AdminShell({ onSignOut, signingOut, getAccessToken }: AdminShell
                   </div>
                 </div>
               </section>
-              <div hidden={activeSection !== "overview"}>
-                <OverviewPage
-                  snapshot={snapshot}
-                  onOpenSection={setActiveSection}
-                  demoMode={demoMode}
-                />
-              </div>
-              <div hidden={activeSection !== "pages"}>
-                <PagesWorkspace snapshot={snapshot} onChange={commitSnapshot} />
-              </div>
-              <div hidden={activeSection !== "projects"}>
-                <ProjectsWorkspace
-                  snapshot={snapshot}
-                  onChange={commitSnapshot}
-                  cmsEnabled={!demoMode}
-                />
-              </div>
-              <div hidden={activeSection !== "categories"}>
-                <CategoriesWorkspace snapshot={snapshot} onChange={commitSnapshot} />
-              </div>
-              <div hidden={activeSection !== "services"}>
-                <CollectionWorkspace
-                  kind="services"
-                  snapshot={snapshot}
-                  onChange={commitSnapshot}
-                />
-              </div>
-              <div hidden={activeSection !== "experience"}>
-                <CollectionWorkspace
-                  kind="experience"
-                  snapshot={snapshot}
-                  onChange={commitSnapshot}
-                />
-              </div>
-              <div hidden={activeSection !== "process"}>
-                <CollectionWorkspace kind="process" snapshot={snapshot} onChange={commitSnapshot} />
-              </div>
-              <div hidden={activeSection !== "faqs"}>
-                <CollectionWorkspace kind="faqs" snapshot={snapshot} onChange={commitSnapshot} />
-              </div>
-              <div hidden={activeSection !== "media"}>
-                <MediaWorkspace
-                  snapshot={snapshot}
-                  onChange={commitSnapshot}
-                  cmsEnabled={!demoMode}
-                  pendingDeletionIds={pendingMediaDeletionIds}
-                />
-              </div>
-              <div hidden={activeSection !== "design"}>
-                <DesignSeoWorkspace snapshot={snapshot} onChange={commitSnapshot} />
-              </div>
-              <div hidden={activeSection !== "settings"}>
-                <SiteSettingsWorkspace snapshot={snapshot} onChange={commitSnapshot} />
-              </div>
+              {visitedSections.has("overview") && (
+                <div hidden={activeSection !== "overview"}>
+                  <OverviewPage
+                    snapshot={snapshot}
+                    onOpenSection={openSection}
+                    demoMode={demoMode}
+                    hasUnsavedChanges={hasUnsavedChanges}
+                    onPreview={() => {
+                      setPreviewMessage("");
+                      setPreviewTheme(
+                        document.documentElement.dataset["theme"] === "dark" ? "dark" : "light",
+                      );
+                      setPreviewViewport("desktop");
+                      setPreviewOpen(true);
+                    }}
+                  />
+                </div>
+              )}
+              {visitedSections.has("pages") && (
+                <div hidden={activeSection !== "pages"}>
+                  <PagesWorkspace snapshot={snapshot} onChange={commitSnapshot} />
+                </div>
+              )}
+              {visitedSections.has("projects") && (
+                <div hidden={activeSection !== "projects"}>
+                  <ProjectsWorkspace
+                    snapshot={snapshot}
+                    onChange={commitSnapshot}
+                    cmsEnabled={!demoMode}
+                  />
+                </div>
+              )}
+              {visitedSections.has("categories") && (
+                <div hidden={activeSection !== "categories"}>
+                  <CategoriesWorkspace snapshot={snapshot} onChange={commitSnapshot} />
+                </div>
+              )}
+              {visitedSections.has("services") && (
+                <div hidden={activeSection !== "services"}>
+                  <ServicesWorkspace snapshot={snapshot} onChange={commitSnapshot} />
+                </div>
+              )}
+              {visitedSections.has("experience") && (
+                <div hidden={activeSection !== "experience"}>
+                  <CollectionWorkspace
+                    kind="experience"
+                    snapshot={snapshot}
+                    onChange={commitSnapshot}
+                  />
+                </div>
+              )}
+              {visitedSections.has("process") && (
+                <div hidden={activeSection !== "process"}>
+                  <CollectionWorkspace
+                    kind="process"
+                    snapshot={snapshot}
+                    onChange={commitSnapshot}
+                  />
+                </div>
+              )}
+              {visitedSections.has("faqs") && (
+                <div hidden={activeSection !== "faqs"}>
+                  <CollectionWorkspace kind="faqs" snapshot={snapshot} onChange={commitSnapshot} />
+                </div>
+              )}
+              {visitedSections.has("media") && (
+                <div hidden={activeSection !== "media"}>
+                  <MediaWorkspace
+                    snapshot={snapshot}
+                    onChange={commitSnapshot}
+                    cmsEnabled={!demoMode}
+                    pendingDeletionIds={pendingMediaDeletionIds}
+                  />
+                </div>
+              )}
+              {visitedSections.has("design") && (
+                <div hidden={activeSection !== "design"}>
+                  <AppearanceWorkspace
+                    snapshot={snapshot}
+                    onApply={commitSnapshot}
+                    onPreview={(candidate) => {
+                      commitSnapshot(candidate);
+                      setPreviewMessage("");
+                      setPreviewTheme(
+                        document.documentElement.dataset["theme"] === "dark" ? "dark" : "light",
+                      );
+                      setPreviewViewport("desktop");
+                      setPreviewOpen(true);
+                    }}
+                  />
+                </div>
+              )}
+              {visitedSections.has("seo") && (
+                <div hidden={activeSection !== "seo"}>
+                  <DesignSeoWorkspace snapshot={snapshot} onChange={commitSnapshot} />
+                </div>
+              )}
+              {visitedSections.has("settings") && (
+                <div hidden={activeSection !== "settings"}>
+                  <SiteSettingsWorkspace
+                    scope="site"
+                    snapshot={snapshot}
+                    onChange={commitSnapshot}
+                  />
+                </div>
+              )}
+              {visitedSections.has("about") && (
+                <div hidden={activeSection !== "about"}>
+                  <SiteSettingsWorkspace
+                    scope="about"
+                    snapshot={snapshot}
+                    onChange={commitSnapshot}
+                  />
+                </div>
+              )}
+              {visitedSections.has("contact") && (
+                <div hidden={activeSection !== "contact"}>
+                  <SiteSettingsWorkspace
+                    scope="contact"
+                    snapshot={snapshot}
+                    onChange={commitSnapshot}
+                  />
+                </div>
+              )}
             </>
           )}
           <p className="mt-8 text-center text-xs text-muted-foreground">
@@ -667,6 +865,12 @@ export function AdminShell({ onSignOut, signingOut, getAccessToken }: AdminShell
           }}
           onClickCapture={(event) => {
             if (!(event.target instanceof Element)) return;
+            if (event.target.closest(".theme-toggle")) {
+              event.preventDefault();
+              event.stopPropagation();
+              setPreviewTheme((theme) => (theme === "light" ? "dark" : "light"));
+              return;
+            }
             const anchor = event.target.closest("a");
             if (!anchor || anchor.getAttribute("href")?.startsWith("#")) return;
             event.preventDefault();
@@ -684,14 +888,61 @@ export function AdminShell({ onSignOut, signingOut, getAccessToken }: AdminShell
                   previewing does not save or publish.
                 </p>
               </div>
-              <button
-                type="button"
-                ref={previewCloseButtonRef}
-                onClick={() => setPreviewOpen(false)}
-                className="rounded-lg border border-border px-3 py-2 text-sm"
-              >
-                Close preview
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <div
+                  role="group"
+                  aria-label="Preview color theme"
+                  className="flex rounded-lg border border-border p-1"
+                >
+                  {(["light", "dark"] as const).map((theme) => (
+                    <button
+                      key={theme}
+                      type="button"
+                      aria-pressed={previewTheme === theme}
+                      onClick={() => setPreviewTheme(theme)}
+                      className={`rounded-md px-3 py-1.5 text-xs capitalize ${
+                        previewTheme === theme ? "bg-accent font-medium" : "text-muted-foreground"
+                      }`}
+                    >
+                      {theme}
+                    </button>
+                  ))}
+                </div>
+                <div
+                  role="group"
+                  aria-label="Preview viewport"
+                  className="flex rounded-lg border border-border p-1"
+                >
+                  {(
+                    [
+                      ["desktop", "Desktop", Monitor],
+                      ["tablet", "Tablet", Tablet],
+                      ["mobile", "Mobile", Smartphone],
+                    ] as const
+                  ).map(([viewport, label, Icon]) => (
+                    <button
+                      key={viewport}
+                      type="button"
+                      aria-label={`${label} preview`}
+                      aria-pressed={previewViewport === viewport}
+                      onClick={() => setPreviewViewport(viewport)}
+                      className={`rounded-md p-2 ${
+                        previewViewport === viewport ? "bg-accent" : "text-muted-foreground"
+                      }`}
+                    >
+                      <Icon aria-hidden="true" className="h-4 w-4" />
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  ref={previewCloseButtonRef}
+                  onClick={() => setPreviewOpen(false)}
+                  className="rounded-lg border border-border px-3 py-2 text-sm"
+                >
+                  Close preview
+                </button>
+              </div>
             </div>
             {(previewMediaError || previewMessage) && (
               <p
@@ -702,12 +953,18 @@ export function AdminShell({ onSignOut, signingOut, getAccessToken }: AdminShell
               </p>
             )}
           </div>
-          <PortfolioPage
-            content={toLegacyPortfolioContent(snapshot, previewMediaUrls)}
-            snapshot={snapshot}
-            mediaUrls={previewMediaUrls}
-            previewMode
-          />
+          <div
+            className="mx-auto min-h-screen overflow-hidden bg-background shadow-2xl transition-[max-width] duration-300"
+            style={{ width: "100%", maxWidth: previewWidth }}
+            data-preview-viewport={previewViewport}
+          >
+            <PortfolioPage
+              content={toLegacyPortfolioContent(snapshot, previewMediaUrls)}
+              snapshot={snapshot}
+              mediaUrls={previewMediaUrls}
+              previewMode
+            />
+          </div>
         </div>
       )}
     </div>

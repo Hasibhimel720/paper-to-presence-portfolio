@@ -90,11 +90,15 @@ describe("CMS image storage", () => {
     expect(mocks.rpc).toHaveBeenCalledWith(
       "portfolio_cms_register_media",
       expect.objectContaining({
+        p_id: "9c12d6f1-126e-4e31-bd8f-166c2a15cc41",
+        p_storage_key:
+          "portfolio/9c12d6f1-126e-4e31-bd8f-166c2a15cc41/9c12d6f1-126e-4e31-bd8f-166c2a15cc41.webp",
         p_mime_type: "image/webp",
         p_width: 1280,
         p_height: 720,
       }),
     );
+    expect(media.id).toBe("9c12d6f1-126e-4e31-bd8f-166c2a15cc41");
     expect(media.source.kind).toBe("storage");
     if (media.source.kind !== "storage") throw new Error("Expected storage-backed media.");
     expect(media.source.key).toContain("/9c12d6f1-126e-4e31-bd8f-166c2a15cc41.webp");

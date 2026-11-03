@@ -108,7 +108,13 @@ export async function uploadCmsMediaFile(
     throw new Error("The selected file is not a readable image.");
   }
 
-  const id = globalThis.crypto.randomUUID();
+  const id = globalThis.crypto?.randomUUID
+    ? globalThis.crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
   const extension = file.name.split(".").pop()!.toLowerCase();
   const storageKey = `portfolio/${id}/${id}.${extension}`;
   const { supabase } = await import("@/lib/supabase");
